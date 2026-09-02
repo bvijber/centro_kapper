@@ -1,15 +1,52 @@
-import { createContext, useContext, useState, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
-export type UserRole = 'customer' | 'staff'
-type MockUser = { role: UserRole; name: string }
-type AuthContextValue = { user: MockUser | null; signIn: (role: UserRole) => void; signOut: () => void }
+import { getCurrentUserFn, loginFn, logoutFn } from './auth.functions'
+import type { SafeUser } from './auth.schemas'
+
+export type UserRole = SafeUser['role']
+
+type AuthContextValue = {
+  user: SafeUser | null
+  isLoading: boolean
+  signIn: (email: string, password: string) => Promise<SafeUser>
+  signOut: () => Promise<void>
+}
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<MockUser | null>(null)
-  const signIn = (role: UserRole) => setUser({ role, name: role === 'staff' ? 'Sam' : 'Daan' })
-  return <AuthContext.Provider value={{ user, signIn, signOut: () => setUser(null) }}>{children}</AuthContext.Provider>
+  const [user, setUser] = useState<SafeUser | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  useEffect(() => {
+    let active = true
+    void getCurrentUserFn()
+      .then((currentUser) => {
+        if (active) setUser(currentUser)
+      })
+      .catch(() => {
+        if (active) setUser(null)
+      })
+      .finally(() => {
+        if (active) setIsLoading(false)
+      })
+    return () => {
+      active = false
+    }
+  }, [])
+
+  async function signIn(email: string, password: string): Promise<SafeUser> {
+    const signedInUser = await loginFn({ data: { email, password } })
+    setUser(signedInUser)
+    return signedInUser
+  }
+
+  async function signOut(): Promise<void> {
+    await logoutFn()
+    setUser(null)
+  }
+
+  return <AuthContext.Provider value={{ user, isLoading, signIn, signOut }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

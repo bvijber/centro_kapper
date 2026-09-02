@@ -9,16 +9,19 @@
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "db:check": "drizzle-kit check",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "auth:create-staff": "tsx scripts/create-staff.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",
+    "@node-rs/argon2": "^2.2.0",
     "@tanstack/react-router": "^1.170.32",
     "@tanstack/react-start": "^1.168.49",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "latest",
     "react": "latest",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "zod": "^4.5.4"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
