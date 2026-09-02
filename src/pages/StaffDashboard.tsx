@@ -1,5 +1,5 @@
 import { CalendarDays, ChevronRight, Clock3, Euro, Scissors, UsersRound } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from '@tanstack/react-router'
 import { Card } from '../components/Card'
 import logo from '../assets/logo_centro_kapper.jpeg'
 import { StaffBottomNav } from '../components/StaffBottomNav'

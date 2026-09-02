@@ -1,3 +1,3 @@
 import { CalendarDays, CircleUserRound, Clock3, House, Scissors } from 'lucide-react'
-import { Link, useLocation } from 'react-router-dom'
+import { Link, useLocation } from '@tanstack/react-router'
 export function BottomNav() { const path = useLocation().pathname; return <nav className="bottom-nav"><Link className={path === '/home' ? 'active' : ''} to="/home"><House /><span>Home</span></Link><Link className={path === '/booking' ? 'active' : ''} to="/booking"><Scissors /><span>Boeken</span></Link><Link className={path === '/queue' ? 'active' : ''} to="/queue"><Clock3 /><span>Wachtrij</span></Link><Link className={path === '/bookings' ? 'active' : ''} to="/bookings"><CalendarDays /><span>Afspraken</span></Link><Link className={path === '/profile' ? 'active' : ''} to="/profile"><CircleUserRound /><span>Profiel</span></Link></nav> }

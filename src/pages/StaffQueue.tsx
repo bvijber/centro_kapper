@@ -1,6 +1,6 @@
 import { Bell, Check, CheckCircle2, Clock3, MapPin, Phone, UserRound, X } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from '@tanstack/react-router'
 import { useWaitingList, type WaitingEntry, type WaitingStatus } from '../auth/WaitingListContext'
 import { Card } from '../components/Card'
 import { StaffBottomNav } from '../components/StaffBottomNav'

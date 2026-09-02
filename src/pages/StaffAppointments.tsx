@@ -1,6 +1,6 @@
 import { Bell, CalendarDays, Check, CheckCircle2, Clock3, Edit3, Eye, Phone, Plus, X } from 'lucide-react'
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from '@tanstack/react-router'
 import { appointments as seedAppointments, type Appointment, type AppointmentStatus, business, services } from '../data/mockData'
 import { useAppointments } from '../auth/AppointmentContext'
 import { Card } from '../components/Card'

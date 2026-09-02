@@ -1,6 +1,6 @@
 import { AlertCircle, ArrowLeft, CheckCircle2, Clock3, MapPin, UsersRound } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link } from '@tanstack/react-router'
 import { useWaitingList, type WaitingEntry } from '../auth/WaitingListContext'
 import { BottomNav } from '../components/BottomNav'
 import { Button } from '../components/Button'

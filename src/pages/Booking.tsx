@@ -1,8 +1,9 @@
 import { ArrowLeft, ChevronRight, Star } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate as useTanStackNavigate } from '@tanstack/react-router'
 import { useState } from 'react'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { ServiceCard } from '../components/ServiceCard'
 import { services } from '../data/mockData'
+function useNavigate() { const navigate = useTanStackNavigate(); return (to: string) => void navigate({ to: to as never }) }
 export function Booking() { const [selected, setSelected] = useState(0); const [day, setDay] = useState(1); const [time, setTime] = useState('14:00'); const navigate = useNavigate(); return <main className="page booking-page"><header className="subheader"><Link to="/home"><ArrowLeft /></Link><h2>AFSPRAAK BOEKEN</h2></header><Card className="fixed-business"><span className="eyebrow">JE BOEKT BIJ</span><strong>Centro Kapper</strong><small>Nieuwe Markt 12, Breda</small></Card><Card className="barber-profile"><div className="avatar">SV</div><div><h3>Sam Vermeer</h3><p>Barber & eigenaar</p><span><Star size={15} fill="currentColor" /> 4.9 (86 reviews)</span></div></Card><p className="eyebrow">KIES EEN SERVICE</p><div className="services">{services.map((service, i) => <ServiceCard key={service.name} service={service} selected={selected === i} onClick={() => setSelected(i)} />)}</div><p className="eyebrow">KIES EEN DATUM</p><div className="dates">{['Ma 12','Di 13','Wo 14','Do 15','Vr 16'].map((date, i) => <button className={day === i ? 'chosen' : ''} onClick={() => setDay(i)} key={date}><span>{date.split(' ')[0]}</span><b>{date.split(' ')[1]}</b><small>jun</small></button>)}</div><p className="eyebrow">KIES EEN TIJD</p><div className="times">{['10:00','11:30','12:30','14:00','15:00','16:30'].map(value => <button className={time === value ? 'chosen' : ''} onClick={() => setTime(value)} key={value}>{value}</button>)}</div><Button onClick={() => navigate('/bookings')}>Bevestig afspraak <ChevronRight size={18} /></Button></main> }

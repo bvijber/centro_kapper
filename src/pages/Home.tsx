@@ -1,5 +1,5 @@
 import { Clock3, MapPin, Navigation, Phone, Scissors } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link } from '@tanstack/react-router'
 import { BottomNav } from '../components/BottomNav'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'

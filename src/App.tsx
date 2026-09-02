@@ -1,14 +1,2 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
-import { Login } from './pages/Login'
-import { CreateAccount } from './pages/CreateAccount'
-import { Home } from './pages/Home'
-import { Booking } from './pages/Booking'
-import { MyBookings } from './pages/MyBookings'
-import { Queue } from './pages/Queue'
-import { StaffDashboard } from './pages/StaffDashboard'
-import { StaffAppointments } from './pages/StaffAppointments'
-import { RequireAuth } from './components/RouteGuards'
-import { CustomerProfile } from './pages/CustomerProfile'
-import { StaffProfile } from './pages/StaffProfile'
-import { StaffQueue } from './pages/StaffQueue'
-export default function App() { return <Routes><Route path="/" element={<Navigate to="/home" replace />} /><Route path="/login" element={<Login />} /><Route path="/create-account" element={<CreateAccount />} /><Route element={<RequireAuth role="customer" />}><Route path="/home" element={<Home />} /><Route path="/booking" element={<Booking />} /><Route path="/queue" element={<Queue />} /><Route path="/bookings" element={<MyBookings />} /><Route path="/profile" element={<CustomerProfile />} /></Route><Route element={<RequireAuth role="staff" />}><Route path="/staff" element={<StaffDashboard />} /><Route path="/staff/appointments" element={<StaffAppointments />} /><Route path="/staff/queue" element={<StaffQueue />} /><Route path="/staff/profile" element={<StaffProfile />} /></Route><Route path="*" element={<Navigate to="/home" replace />} /></Routes> }
+// Routing now lives in src/routes. This file is retained during the foundation
+// migration so the previous implementation is not deleted prematurely.
