@@ -1,0 +1,9 @@
+import { Clock3, MapPin, Navigation, Phone, Scissors } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { BottomNav } from '../components/BottomNav'
+import { Button } from '../components/Button'
+import { Card } from '../components/Card'
+import { CustomerHeader } from '../components/CustomerHeader'
+import { business, services } from '../data/mockData'
+import logo from '../assets/logo_centro_kapper.jpeg'
+export function Home() { return <main className="page shell"><CustomerHeader /><Card className="business-hero"><img src={logo} alt="Centro Kapper logo" /><div><p className="eyebrow">CENTRO KAPPER</p><h1>Welkom,<br /><em>jouw moment.</em></h1></div></Card><div className="business-status"><span><i /> {business.status}</span><small>{business.statusDetail}</small></div><div className="address"><MapPin size={18} /><span>{business.address}</span></div><div className="home-actions"><Link to="/booking"><Button>Afspraak maken</Button></Link><Link to="/queue" className="secondary-action"><Clock3 size={19} /> Aansluiten bij wachtrij</Link></div><div className="section-heading"><h2>Onze services</h2><span>Centro Kapper</span></div><div className="featured-services">{services.map(service => <Card key={service.name} className="featured-service"><Scissors size={21} /><div><b>{service.name}</b><small>{service.detail} · {service.duration}</small></div><strong>{service.price}</strong></Card>)}</div><Card className="hours-card"><div><p className="eyebrow">OPENINGSTIJDEN</p><h3>{business.hours}</h3><p>Vandaag staan we voor je klaar.</p></div><Clock3 /></Card><div className="contact-actions"><a href={`tel:${business.phone}`}><Phone size={18} /> Contact</a><a href="https://maps.google.com/?q=Nieuwe+Markt+12+Breda" target="_blank" rel="noreferrer"><Navigation size={18} /> Route</a></div><BottomNav /></main> }
