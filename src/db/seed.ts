@@ -16,41 +16,38 @@ const developmentServices = [
 ]
 
 async function seed() {
-  await db.transaction(async (tx) => {
-    await tx.insert(businessProfile).values({
+  await db.insert(businessProfile).values({
       id: 1,
       name: 'Centro Kapper (ontwikkeling)',
       address: 'Ontwikkeladres, Nederland',
       phone: '+31 00 000 00 00',
       timezone: 'Europe/Amsterdam',
-    }).onConflictDoNothing()
+  }).onConflictDoNothing()
 
-    await tx.insert(openingHours).values(
+  await db.insert(openingHours).values(
       Array.from({ length: 7 }, (_, weekday) => ({
         weekday,
         isOpen: weekday < 6,
         openingTime: weekday < 6 ? '09:00' : null,
         closingTime: weekday < 6 ? '18:00' : null,
       })),
-    ).onConflictDoNothing()
+  ).onConflictDoNothing()
 
-    await tx.insert(users).values({
+  await db.insert(users).values({
       id: placeholderStaffId,
       email: 'staff.placeholder@example.test',
       passwordHash: null,
       role: 'staff',
-    }).onConflictDoNothing()
+  }).onConflictDoNothing()
 
-    await tx.insert(staffProfiles).values({
+  await db.insert(staffProfiles).values({
       userId: placeholderStaffId,
       displayName: 'Medewerker (ontwikkeling)',
       phone: '+31 00 000 00 01',
       active: false,
-    }).onConflictDoNothing()
+  }).onConflictDoNothing()
 
-    await tx.insert(services).values(developmentServices).onConflictDoNothing()
-
-  })
+  await db.insert(services).values(developmentServices).onConflictDoNothing()
 }
 
 seed().catch((error: unknown) => {
