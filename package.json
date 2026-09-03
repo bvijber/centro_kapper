@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "db:check": "drizzle-kit check",
@@ -30,6 +32,7 @@
     "@vitejs/plugin-react": "latest",
     "drizzle-kit": "^0.31.10",
     "typescript": "latest",
-    "vite": "latest"
+    "vite": "latest",
+    "vitest": "^5.0.0"
   }
 }
