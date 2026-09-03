@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 
 import { db } from '../db/client.server'
+import type { Database } from '../db/client.server'
 import { auditLogs, type JsonValue } from '../db/schema/audit-logs'
 
 type AuditEvent = {
@@ -17,8 +18,10 @@ function hashNetworkValue(value: string | undefined): string | null {
   return value ? createHash('sha256').update(value).digest('hex') : null
 }
 
-export async function recordAuditEvent(event: AuditEvent): Promise<void> {
-  await db.insert(auditLogs).values({
+type AuditExecutor = Pick<Database, 'insert'>
+
+export async function recordAuditEvent(event: AuditEvent, executor: AuditExecutor = db): Promise<void> {
+  await executor.insert(auditLogs).values({
     action: event.action,
     actorUserId: event.actorUserId,
     entityType: event.entityType,

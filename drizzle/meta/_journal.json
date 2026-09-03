@@ -15,6 +15,13 @@
       "when": 1788352585755,
       "tag": "0001_grey_brood",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788441917983,
+      "tag": "0002_oval_hitman",
+      "breakpoints": true
     }
   ]
 }

@@ -2,6 +2,7 @@ import { relations, sql } from 'drizzle-orm'
 import {
   boolean,
   check,
+  date,
   index,
   integer,
   pgTable,
@@ -71,6 +72,24 @@ export const breakPeriods = pgTable(
   (table) => ({
     startsAtIndex: index('break_periods_starts_at_idx').on(table.startsAt),
     rangeCheck: check('break_periods_range_check', sql`${table.startsAt} < ${table.endsAt}`),
+  }),
+)
+
+export const wholeDayBlocks = pgTable(
+  'whole_day_blocks',
+  {
+    id: uuid('id').defaultRandom().primaryKey(),
+    blockDate: date('block_date').notNull(),
+    note: text('note'),
+    active: boolean('active').default(true).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    activeDateUnique: uniqueIndex('whole_day_blocks_active_date_unique')
+      .on(table.blockDate)
+      .where(sql`${table.active} = true`),
+    blockDateIndex: index('whole_day_blocks_block_date_idx').on(table.blockDate),
   }),
 )
 
