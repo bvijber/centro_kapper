@@ -12,6 +12,14 @@ export const businessProfileUpdateSchema = z.object({
   phone: z.string().trim().min(1).max(32),
 })
 
+export const bookingSettingsUpdateSchema = z.object({
+  bufferMinutes: z.number().int().min(0),
+  cancellationDeadlineMinutes: z.number().int().min(0),
+  overlapBehavior: z.enum(['block', 'allow_with_warning']),
+  confirmationBehavior: z.enum(['manual']),
+  noShowReleaseBehavior: z.enum(['automatic', 'manual']),
+})
+
 export const openingHourSchema = z.object({
   weekday: z.number().int().min(0).max(6),
   isOpen: z.boolean(),
@@ -59,6 +67,7 @@ export const wholeDayBlockCreateSchema = z.object({
 export const wholeDayBlockDeleteSchema = z.object({ id: z.string().uuid() })
 
 export type BusinessProfileUpdate = z.infer<typeof businessProfileUpdateSchema>
+export type BookingSettingsUpdate = z.infer<typeof bookingSettingsUpdateSchema>
 export type OpeningHoursUpdate = z.infer<typeof openingHoursUpdateSchema>
 export type BreakPeriodCreate = z.infer<typeof breakPeriodCreateSchema>
 export type WholeDayBlockCreate = z.infer<typeof wholeDayBlockCreateSchema>

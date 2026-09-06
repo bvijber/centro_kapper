@@ -34,6 +34,40 @@ export const businessProfile = pgTable(
   }),
 )
 
+export const bookingSettings = pgTable(
+  'booking_settings',
+  {
+    id: integer('id').primaryKey().default(1),
+    bufferMinutes: integer('buffer_minutes').default(0).notNull(),
+    cancellationDeadlineMinutes: integer('cancellation_deadline_minutes').default(1440).notNull(),
+    overlapBehavior: text('overlap_behavior').default('block').notNull(),
+    confirmationBehavior: text('confirmation_behavior').default('manual').notNull(),
+    noShowReleaseBehavior: text('no_show_release_behavior').default('manual').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => ({
+    singletonCheck: check('booking_settings_singleton_check', sql`${table.id} = 1`),
+    bufferCheck: check('booking_settings_buffer_check', sql`${table.bufferMinutes} >= 0`),
+    cancellationCheck: check(
+      'booking_settings_cancellation_check',
+      sql`${table.cancellationDeadlineMinutes} >= 0`,
+    ),
+    overlapCheck: check(
+      'booking_settings_overlap_check',
+      sql`${table.overlapBehavior} IN ('block', 'allow_with_warning')`,
+    ),
+    confirmationCheck: check(
+      'booking_settings_confirmation_check',
+      sql`${table.confirmationBehavior} IN ('manual')`,
+    ),
+    noShowCheck: check(
+      'booking_settings_no_show_check',
+      sql`${table.noShowReleaseBehavior} IN ('automatic', 'manual')`,
+    ),
+  }),
+)
+
 export const openingHours = pgTable(
   'opening_hours',
   {

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  bookingSettingsUpdateSchema,
   breakPeriodCreateSchema,
   businessProfileUpdateSchema,
   openingHoursUpdateSchema,
@@ -10,6 +11,29 @@ import {
 const openMonday = { weekday: 0, isOpen: true, openingTime: '09:00', closingTime: '18:00' }
 
 describe('settings schemas', () => {
+  it('validates booking settings without artificial maximums', () => {
+    const valid = {
+      bufferMinutes: 1_000_000,
+      cancellationDeadlineMinutes: 1_000_000,
+      overlapBehavior: 'allow_with_warning',
+      confirmationBehavior: 'manual',
+      noShowReleaseBehavior: 'automatic',
+    } as const
+
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, bufferMinutes: 0 }).success).toBe(true)
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, bufferMinutes: 30 }).success).toBe(true)
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, cancellationDeadlineMinutes: 0 }).success).toBe(true)
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, cancellationDeadlineMinutes: 1440 }).success).toBe(true)
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, overlapBehavior: 'block' }).success).toBe(true)
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, confirmationBehavior: 'manual' }).success).toBe(true)
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, noShowReleaseBehavior: 'manual' }).success).toBe(true)
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, bufferMinutes: -1 }).success).toBe(false)
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, cancellationDeadlineMinutes: -1 }).success).toBe(false)
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, overlapBehavior: 'allow' }).success).toBe(false)
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, confirmationBehavior: 'automatic' }).success).toBe(false)
+    expect(bookingSettingsUpdateSchema.safeParse({ ...valid, noShowReleaseBehavior: 'later' }).success).toBe(false)
+  })
+
   it('accepts and rejects business profile input at its boundaries', () => {
     expect(businessProfileUpdateSchema.safeParse({ name: 'Centro Kapper', address: 'Kerkstraat 1', phone: '+31 6 12345678' }).success).toBe(true)
     expect(businessProfileUpdateSchema.safeParse({ name: ' ', address: 'Kerkstraat 1', phone: '+31 6 12345678' }).success).toBe(false)

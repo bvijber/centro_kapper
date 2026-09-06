@@ -22,6 +22,13 @@
       "when": 1788441917983,
       "tag": "0002_oval_hitman",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788714526964,
+      "tag": "0003_panoramic_liz_osborn",
+      "breakpoints": true
     }
   ]
 }

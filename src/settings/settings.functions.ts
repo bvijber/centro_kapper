@@ -4,6 +4,7 @@ import { requireStaff } from '../auth/authorization'
 import {
   breakPeriodCreateSchema,
   breakPeriodDeleteSchema,
+  bookingSettingsUpdateSchema,
   businessProfileUpdateSchema,
   openingHoursUpdateSchema,
   wholeDayBlockCreateSchema,
@@ -15,14 +16,21 @@ import {
   deleteBreakPeriod,
   deleteWholeDayBlock,
   getBusinessProfile,
+  getBookingSettings,
   getOpeningHours,
   getSettings,
   updateBusinessProfile,
+  updateBookingSettings,
   updateOpeningHours,
 } from './settings.service.server'
 
 export const getBusinessProfileFn = createServerFn({ method: 'GET' }).handler(() => getBusinessProfile())
 export const getOpeningHoursFn = createServerFn({ method: 'GET' }).handler(() => getOpeningHours())
+
+export const getBookingSettingsFn = createServerFn({ method: 'GET' }).handler(async () => {
+  await requireStaff()
+  return getBookingSettings()
+})
 
 export const getSettingsFn = createServerFn({ method: 'GET' }).handler(async () => {
   await requireStaff()
@@ -32,6 +40,11 @@ export const getSettingsFn = createServerFn({ method: 'GET' }).handler(async () 
 export const updateBusinessProfileFn = createServerFn({ method: 'POST' }).validator(businessProfileUpdateSchema).handler(async ({ data }) => {
   await requireStaff()
   return updateBusinessProfile(data)
+})
+
+export const updateBookingSettingsFn = createServerFn({ method: 'POST' }).validator(bookingSettingsUpdateSchema).handler(async ({ data }) => {
+  await requireStaff()
+  return updateBookingSettings(data)
 })
 
 export const updateOpeningHoursFn = createServerFn({ method: 'POST' }).validator(openingHoursUpdateSchema).handler(async ({ data }) => {

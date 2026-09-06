@@ -1,5 +1,5 @@
 import { db } from './client.server'
-import { businessProfile, openingHours } from './schema/business'
+import { bookingSettings, businessProfile, openingHours } from './schema/business'
 import { services } from './schema/services'
 import { staffProfiles } from './schema/profiles'
 import { users } from './schema/users'
@@ -32,6 +32,8 @@ async function seed() {
         closingTime: weekday < 6 ? '18:00' : null,
       })),
   ).onConflictDoNothing()
+
+  await db.insert(bookingSettings).values({ id: 1 }).onConflictDoNothing()
 
   await db.insert(users).values({
       id: placeholderStaffId,

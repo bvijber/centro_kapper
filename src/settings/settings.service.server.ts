@@ -3,11 +3,19 @@ import { asc, eq } from 'drizzle-orm'
 import { recordAuditEvent } from '../auth/audit.server'
 import { db } from '../db/client.server'
 import type { JsonValue } from '../db/schema/audit-logs'
-import { breakPeriods, businessProfile, openingHours, wholeDayBlocks } from '../db/schema/business'
+import { bookingSettings, breakPeriods, businessProfile, openingHours, wholeDayBlocks } from '../db/schema/business'
 import type { Database } from '../db/client.server'
-import type { BreakPeriodCreate, BusinessProfileUpdate, OpeningHoursUpdate, WholeDayBlockCreate } from './settings.schemas'
+import type { BookingSettingsUpdate, BreakPeriodCreate, BusinessProfileUpdate, OpeningHoursUpdate, WholeDayBlockCreate } from './settings.schemas'
 
 type SettingsExecutor = Database | Parameters<Parameters<Database['transaction']>[0]>[0]
+
+export type BookingSettingsDTO = {
+  bufferMinutes: number
+  cancellationDeadlineMinutes: number
+  overlapBehavior: 'block' | 'allow_with_warning'
+  confirmationBehavior: 'manual'
+  noShowReleaseBehavior: 'automatic' | 'manual'
+}
 
 export class SettingsError extends Error {
   constructor(message: string, readonly code: 'NOT_FOUND' | 'CONFLICT' | 'FAILED') {
@@ -34,6 +42,49 @@ function mapBreakPeriod(row: typeof breakPeriods.$inferSelect) {
 
 function mapWholeDayBlock(row: typeof wholeDayBlocks.$inferSelect) {
   return { id: row.id, blockDate: row.blockDate, note: row.note, active: row.active, createdAt: row.createdAt, updatedAt: row.updatedAt }
+}
+
+function mapBookingSettings(row: typeof bookingSettings.$inferSelect): BookingSettingsDTO {
+  return {
+    bufferMinutes: row.bufferMinutes,
+    cancellationDeadlineMinutes: row.cancellationDeadlineMinutes,
+    overlapBehavior: row.overlapBehavior as BookingSettingsDTO['overlapBehavior'],
+    confirmationBehavior: row.confirmationBehavior as BookingSettingsDTO['confirmationBehavior'],
+    noShowReleaseBehavior: row.noShowReleaseBehavior as BookingSettingsDTO['noShowReleaseBehavior'],
+  }
+}
+
+export async function getBookingSettings(): Promise<BookingSettingsDTO> {
+  try {
+    const [settings] = await db.select().from(bookingSettings).where(eq(bookingSettings.id, 1)).limit(1)
+    if (!settings) throw new SettingsError('Boekingsinstellingen ontbreken.', 'NOT_FOUND')
+    return mapBookingSettings(settings)
+  } catch (error) {
+    if (error instanceof SettingsError) throw error
+    throw new SettingsError('Boekingsinstellingen konden niet worden geladen.', 'FAILED')
+  }
+}
+
+export async function updateBookingSettings(input: BookingSettingsUpdate): Promise<BookingSettingsDTO> {
+  try {
+    return await db.transaction(async (tx) => {
+      const [before] = await tx.select().from(bookingSettings).where(eq(bookingSettings.id, 1)).limit(1)
+      if (!before) throw new SettingsError('Boekingsinstellingen ontbreken.', 'NOT_FOUND')
+
+      const [updated] = await tx.update(bookingSettings).set({ ...input, updatedAt: new Date() }).where(eq(bookingSettings.id, 1)).returning()
+      if (!updated) throw new SettingsError('Boekingsinstellingen konden niet worden opgeslagen.', 'FAILED')
+
+      await audit(tx, 'settings.booking_settings.update', '1', {
+        before: mapBookingSettings(before),
+        after: mapBookingSettings(updated),
+      })
+
+      return mapBookingSettings(updated)
+    })
+  } catch (error) {
+    if (error instanceof SettingsError) throw error
+    throw new SettingsError('Boekingsinstellingen konden niet worden opgeslagen.', 'FAILED')
+  }
 }
 
 export async function getBusinessProfile() {
