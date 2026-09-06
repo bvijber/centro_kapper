@@ -19,7 +19,7 @@ import { Route as CustomerBookingsRouteImport } from './routes/_customer/booking
 import { Route as CustomerHomeRouteImport } from './routes/_customer/home'
 import { Route as CustomerProfileRouteImport } from './routes/_customer/profile'
 import { Route as CustomerQueueRouteImport } from './routes/_customer/queue'
-import { Route as StaffStaffRouteImport } from './routes/_staff/staff'
+import { Route as StaffStaffIndexRouteImport } from './routes/_staff/staff/index'
 import { Route as StaffStaffAppointmentsRouteImport } from './routes/_staff/staff/appointments'
 import { Route as StaffStaffProfileRouteImport } from './routes/_staff/staff/profile'
 import { Route as StaffStaffQueueRouteImport } from './routes/_staff/staff/queue'
@@ -72,25 +72,25 @@ const CustomerQueueRoute = CustomerQueueRouteImport.update({
   path: '/queue',
   getParentRoute: () => CustomerRoute,
 } as any)
-const StaffStaffRoute = StaffStaffRouteImport.update({
-  id: '/staff',
-  path: '/staff',
+const StaffStaffIndexRoute = StaffStaffIndexRouteImport.update({
+  id: '/staff/',
+  path: '/staff/',
   getParentRoute: () => StaffRoute,
 } as any)
 const StaffStaffAppointmentsRoute = StaffStaffAppointmentsRouteImport.update({
-  id: '/appointments',
-  path: '/appointments',
-  getParentRoute: () => StaffStaffRoute,
+  id: '/staff/appointments',
+  path: '/staff/appointments',
+  getParentRoute: () => StaffRoute,
 } as any)
 const StaffStaffProfileRoute = StaffStaffProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
-  getParentRoute: () => StaffStaffRoute,
+  id: '/staff/profile',
+  path: '/staff/profile',
+  getParentRoute: () => StaffRoute,
 } as any)
 const StaffStaffQueueRoute = StaffStaffQueueRouteImport.update({
-  id: '/queue',
-  path: '/queue',
-  getParentRoute: () => StaffStaffRoute,
+  id: '/staff/queue',
+  path: '/staff/queue',
+  getParentRoute: () => StaffRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -102,10 +102,10 @@ export interface FileRoutesByFullPath {
   '/home': typeof CustomerHomeRoute
   '/profile': typeof CustomerProfileRoute
   '/queue': typeof CustomerQueueRoute
-  '/staff': typeof StaffStaffRouteWithChildren
   '/staff/appointments': typeof StaffStaffAppointmentsRoute
   '/staff/profile': typeof StaffStaffProfileRoute
   '/staff/queue': typeof StaffStaffQueueRoute
+  '/staff/': typeof StaffStaffIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -116,10 +116,10 @@ export interface FileRoutesByTo {
   '/home': typeof CustomerHomeRoute
   '/profile': typeof CustomerProfileRoute
   '/queue': typeof CustomerQueueRoute
-  '/staff': typeof StaffStaffRouteWithChildren
   '/staff/appointments': typeof StaffStaffAppointmentsRoute
   '/staff/profile': typeof StaffStaffProfileRoute
   '/staff/queue': typeof StaffStaffQueueRoute
+  '/staff': typeof StaffStaffIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -133,10 +133,10 @@ export interface FileRoutesById {
   '/_customer/home': typeof CustomerHomeRoute
   '/_customer/profile': typeof CustomerProfileRoute
   '/_customer/queue': typeof CustomerQueueRoute
-  '/_staff/staff': typeof StaffStaffRouteWithChildren
   '/_staff/staff/appointments': typeof StaffStaffAppointmentsRoute
   '/_staff/staff/profile': typeof StaffStaffProfileRoute
   '/_staff/staff/queue': typeof StaffStaffQueueRoute
+  '/_staff/staff/': typeof StaffStaffIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -149,10 +149,10 @@ export interface FileRouteTypes {
     | '/home'
     | '/profile'
     | '/queue'
-    | '/staff'
     | '/staff/appointments'
     | '/staff/profile'
     | '/staff/queue'
+    | '/staff/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -163,10 +163,10 @@ export interface FileRouteTypes {
     | '/home'
     | '/profile'
     | '/queue'
-    | '/staff'
     | '/staff/appointments'
     | '/staff/profile'
     | '/staff/queue'
+    | '/staff'
   id:
     | '__root__'
     | '/'
@@ -179,10 +179,10 @@ export interface FileRouteTypes {
     | '/_customer/home'
     | '/_customer/profile'
     | '/_customer/queue'
-    | '/_staff/staff'
     | '/_staff/staff/appointments'
     | '/_staff/staff/profile'
     | '/_staff/staff/queue'
+    | '/_staff/staff/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -265,33 +265,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomerQueueRouteImport
       parentRoute: typeof CustomerRoute
     }
-    '/_staff/staff': {
-      id: '/_staff/staff'
+    '/_staff/staff/': {
+      id: '/_staff/staff/'
       path: '/staff'
-      fullPath: '/staff'
-      preLoaderRoute: typeof StaffStaffRouteImport
+      fullPath: '/staff/'
+      preLoaderRoute: typeof StaffStaffIndexRouteImport
       parentRoute: typeof StaffRoute
     }
     '/_staff/staff/appointments': {
       id: '/_staff/staff/appointments'
-      path: '/appointments'
+      path: '/staff/appointments'
       fullPath: '/staff/appointments'
       preLoaderRoute: typeof StaffStaffAppointmentsRouteImport
-      parentRoute: typeof StaffStaffRoute
+      parentRoute: typeof StaffRoute
     }
     '/_staff/staff/profile': {
       id: '/_staff/staff/profile'
-      path: '/profile'
+      path: '/staff/profile'
       fullPath: '/staff/profile'
       preLoaderRoute: typeof StaffStaffProfileRouteImport
-      parentRoute: typeof StaffStaffRoute
+      parentRoute: typeof StaffRoute
     }
     '/_staff/staff/queue': {
       id: '/_staff/staff/queue'
-      path: '/queue'
+      path: '/staff/queue'
       fullPath: '/staff/queue'
       preLoaderRoute: typeof StaffStaffQueueRouteImport
-      parentRoute: typeof StaffStaffRoute
+      parentRoute: typeof StaffRoute
     }
   }
 }
@@ -316,28 +316,18 @@ const CustomerRouteWithChildren = CustomerRoute._addFileChildren(
   CustomerRouteChildren,
 )
 
-interface StaffStaffRouteChildren {
+interface StaffRouteChildren {
   StaffStaffAppointmentsRoute: typeof StaffStaffAppointmentsRoute
   StaffStaffProfileRoute: typeof StaffStaffProfileRoute
   StaffStaffQueueRoute: typeof StaffStaffQueueRoute
-}
-
-const StaffStaffRouteChildren: StaffStaffRouteChildren = {
-  StaffStaffAppointmentsRoute: StaffStaffAppointmentsRoute,
-  StaffStaffProfileRoute: StaffStaffProfileRoute,
-  StaffStaffQueueRoute: StaffStaffQueueRoute,
-}
-
-const StaffStaffRouteWithChildren = StaffStaffRoute._addFileChildren(
-  StaffStaffRouteChildren,
-)
-
-interface StaffRouteChildren {
-  StaffStaffRoute: typeof StaffStaffRouteWithChildren
+  StaffStaffIndexRoute: typeof StaffStaffIndexRoute
 }
 
 const StaffRouteChildren: StaffRouteChildren = {
-  StaffStaffRoute: StaffStaffRouteWithChildren,
+  StaffStaffAppointmentsRoute: StaffStaffAppointmentsRoute,
+  StaffStaffProfileRoute: StaffStaffProfileRoute,
+  StaffStaffQueueRoute: StaffStaffQueueRoute,
+  StaffStaffIndexRoute: StaffStaffIndexRoute,
 }
 
 const StaffRouteWithChildren = StaffRoute._addFileChildren(StaffRouteChildren)
@@ -354,10 +344,11 @@ export const routeTree = rootRouteImport
   ._addFileTypes<FileRouteTypes>()
 
 import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
+import type { startInstance } from './start.ts'
 declare module '@tanstack/react-start' {
   interface Register {
     ssr: true
     router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
   }
 }

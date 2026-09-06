@@ -11,14 +11,6 @@ export const appointmentStatusEnum = pgEnum('appointment_status', [
   'no_show',
 ])
 
-export const appointmentSourceEnum = pgEnum('appointment_source', [
-  'customer',
-  'phone',
-  'whatsapp',
-  'walk_in',
-  'staff',
-])
-
 export const waitingListStatusEnum = pgEnum('waiting_list_status', [
   'waiting',
   'accepted',
