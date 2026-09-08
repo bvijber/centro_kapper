@@ -1,3 +1,1 @@
-export const business = { name: 'Centro Kapper', address: 'Nieuwe Markt 12, Breda', phone: '+31 76 204 03 03', hours: 'Ma–Za · 09:00–18:00', status: 'Nu open', statusDetail: 'Sluit vandaag om 18:00' }
-export const barbers = [{ name: 'Sam Vermeer', role: 'Barber & eigenaar', rating: '4.9', image: 'https://i.pravatar.cc/160?img=12' }]
 export const services = [{ name: 'Knippen', detail: 'Knippen & styling', price: '€ 30', duration: '35 min' }, { name: 'Baard trimmen', detail: 'Vormgeven & trimmen', price: '€ 20', duration: '25 min' }, { name: 'Knippen + baard', detail: 'Complete verzorging', price: '€40', duration: '45 min' }]
