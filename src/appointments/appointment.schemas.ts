@@ -55,6 +55,49 @@ export const appointmentListSchema = z.object({
   }
 })
 
+export const appointmentStatusUpdateSchema = z.object({
+  id: z.string().uuid(),
+  status: z.enum(['confirmed', 'in_progress', 'completed', 'no_show']),
+})
+
+export const appointmentModifySchema = z.object({
+  id: z.string().uuid(),
+  serviceId: z.string().uuid().optional(),
+  localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  localTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  customerUserId: z.string().uuid().optional(),
+  overrideOpeningHours: z.boolean().default(false),
+  overrideBreak: z.boolean().default(false),
+  overrideWholeDayBlock: z.boolean().default(false),
+  confirmOverlap: z.boolean().default(false),
+}).superRefine((value, context) => {
+  const hasDateTime = value.localDate !== undefined || value.localTime !== undefined
+  if (hasDateTime && (!value.localDate || !value.localTime)) {
+    context.addIssue({ code: 'custom', message: 'Lokale datum en tijd zijn samen verplicht.', path: ['localDate'] })
+  }
+  if (value.serviceId === undefined && !hasDateTime && value.customerUserId === undefined) {
+    context.addIssue({ code: 'custom', message: 'Geef een wijziging op voor dienst, datum/tijd of customer.', path: ['serviceId'] })
+  }
+})
+
+export const appointmentCancelSchema = z.object({ id: z.string().uuid() })
+
+export const cancellationRequestCreateSchema = z.object({
+  appointmentId: z.string().uuid(),
+  reason: z.string().trim().min(1).max(1000),
+})
+
+export const cancellationRequestIdSchema = z.object({ id: z.string().uuid() })
+
+export const cancellationRequestListSchema = z.object({
+  appointmentId: z.string().uuid().optional(),
+})
+
+export type AppointmentStatusUpdateInput = z.infer<typeof appointmentStatusUpdateSchema>
+export type AppointmentModifyInput = z.infer<typeof appointmentModifySchema>
+export type CancellationRequestCreateInput = z.infer<typeof cancellationRequestCreateSchema>
+export type CancellationRequestListInput = z.infer<typeof cancellationRequestListSchema>
+
 export type AppointmentCreateInput = z.infer<typeof appointmentCreateSchema>
 export type AppointmentListInput = z.infer<typeof appointmentListSchema>
 export type AppointmentSnapshot = z.infer<typeof appointmentSnapshotSchema>

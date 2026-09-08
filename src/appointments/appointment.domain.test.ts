@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { assertAppointmentLifecycle, calculateOccupiedEnd, canTransitionAppointmentStatus } from './appointment.domain'
+import { assertAppointmentLifecycle, calculateOccupiedEnd, canTransitionAppointmentStatus, canTransitionCancellationRequestStatus } from './appointment.domain'
 
 describe('appointment domain', () => {
   it('calculates occupied end from service duration plus buffer', () => {
@@ -35,5 +35,15 @@ describe('appointment domain', () => {
     expect(() => assertAppointmentLifecycle('no_show', null)).not.toThrow()
     expect(() => assertAppointmentLifecycle('no_show', new Date())).not.toThrow()
     expect(() => assertAppointmentLifecycle('confirmed', new Date())).toThrow()
+  })
+
+  it('enforces the cancellation request transition matrix', () => {
+    expect(canTransitionCancellationRequestStatus('pending', 'approved')).toBe(true)
+    expect(canTransitionCancellationRequestStatus('pending', 'rejected')).toBe(true)
+    expect(canTransitionCancellationRequestStatus('pending', 'withdrawn')).toBe(true)
+    expect(canTransitionCancellationRequestStatus('approved', 'withdrawn')).toBe(false)
+    expect(canTransitionCancellationRequestStatus('rejected', 'approved')).toBe(false)
+    expect(canTransitionCancellationRequestStatus('withdrawn', 'approved')).toBe(false)
+    expect(canTransitionCancellationRequestStatus('pending', 'pending')).toBe(false)
   })
 })

@@ -15,6 +15,19 @@ export function canTransitionAppointmentStatus(from: AppointmentStatus, to: Appo
   return transitions[from].includes(to)
 }
 
+export type CancellationRequestStatus = 'pending' | 'approved' | 'rejected' | 'withdrawn'
+
+const cancellationTransitions: Record<CancellationRequestStatus, readonly CancellationRequestStatus[]> = {
+  pending: ['approved', 'rejected', 'withdrawn'],
+  approved: [],
+  rejected: [],
+  withdrawn: [],
+}
+
+export function canTransitionCancellationRequestStatus(from: CancellationRequestStatus, to: CancellationRequestStatus): boolean {
+  return cancellationTransitions[from].includes(to)
+}
+
 export function assertAppointmentLifecycle(status: AppointmentStatus, slotReleasedAt: Date | null): void {
   if (slotReleasedAt !== null && status !== 'no_show') {
     throw new Error('Only no-show appointments can release their occupied slot.')

@@ -11,6 +11,13 @@ export const appointmentStatusEnum = pgEnum('appointment_status', [
   'no_show',
 ])
 
+export const cancellationRequestStatusEnum = pgEnum('cancellation_request_status', [
+  'pending',
+  'approved',
+  'rejected',
+  'withdrawn',
+])
+
 export const waitingListStatusEnum = pgEnum('waiting_list_status', [
   'waiting',
   'accepted',

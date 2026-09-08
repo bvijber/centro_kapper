@@ -4,6 +4,7 @@ import { boolean, check, index, integer, pgTable, text, timestamp, uuid } from '
 import { appointmentStatusEnum } from './enums'
 import { services } from './services'
 import { users } from './users'
+import { cancellationRequests } from './cancellation-requests'
 
 export const appointments = pgTable(
   'appointments',
@@ -58,9 +59,10 @@ export const appointments = pgTable(
 // Overlap prevention is enforced by the appointment service transaction and its
 // per-barber PostgreSQL advisory lock; these indexes support the overlap query.
 
-export const appointmentsRelations = relations(appointments, ({ one }) => ({
+export const appointmentsRelations = relations(appointments, ({ one, many }) => ({
   customer: one(users, { fields: [appointments.customerUserId], references: [users.id], relationName: 'customerAppointments' }),
   barber: one(users, { fields: [appointments.barberUserId], references: [users.id], relationName: 'barberAppointments' }),
   creator: one(users, { fields: [appointments.createdByUserId], references: [users.id], relationName: 'createdAppointments' }),
   service: one(services, { fields: [appointments.serviceId], references: [services.id] }),
+  cancellationRequests: many(cancellationRequests),
 }))

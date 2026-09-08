@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { appointmentCreateSchema, appointmentListSchema, appointmentSnapshotSchema } from './appointment.schemas'
+import { appointmentCreateSchema, appointmentListSchema, appointmentModifySchema, appointmentSnapshotSchema, appointmentStatusUpdateSchema, cancellationRequestCreateSchema, cancellationRequestIdSchema } from './appointment.schemas'
 
 const serviceId = '11111111-1111-4111-8111-111111111111'
 const customerId = '22222222-2222-4222-8222-222222222222'
@@ -29,5 +29,30 @@ describe('appointment schemas', () => {
   it('validates dynamic list ranges without imposing slot increments', () => {
     expect(appointmentListSchema.safeParse({ from: '2026-09-06T09:37:00+02:00', to: '2026-09-06T10:11:00+02:00' }).success).toBe(true)
     expect(appointmentListSchema.safeParse({ from: '2026-09-06T10:11:00+02:00', to: '2026-09-06T09:37:00+02:00' }).success).toBe(false)
+  })
+
+  it('validates appointment status updates to allowed targets only', () => {
+    expect(appointmentStatusUpdateSchema.safeParse({ id: serviceId, status: 'confirmed' }).success).toBe(true)
+    expect(appointmentStatusUpdateSchema.safeParse({ id: serviceId, status: 'no_show' }).success).toBe(true)
+    expect(appointmentStatusUpdateSchema.safeParse({ id: serviceId, status: 'new' }).success).toBe(false)
+    expect(appointmentStatusUpdateSchema.safeParse({ id: serviceId, status: 'cancelled' }).success).toBe(false)
+    expect(appointmentStatusUpdateSchema.safeParse({ id: 'not-a-uuid', status: 'confirmed' }).success).toBe(false)
+  })
+
+  it('requires a real change and paired local date/time in appointment modification', () => {
+    expect(appointmentModifySchema.safeParse({ id: serviceId, serviceId }).success).toBe(true)
+    expect(appointmentModifySchema.safeParse({ id: serviceId, localDate: '2026-09-07', localTime: '10:00' }).success).toBe(true)
+    expect(appointmentModifySchema.safeParse({ id: serviceId }).success).toBe(false)
+    expect(appointmentModifySchema.safeParse({ id: serviceId, localDate: '2026-09-07' }).success).toBe(false)
+    expect(appointmentModifySchema.safeParse({ id: serviceId, localDate: '2026-09-07', localTime: '25:00' }).success).toBe(false)
+    expect(appointmentModifySchema.safeParse({ id: serviceId, serviceId, confirmOverlap: true }).success).toBe(true)
+  })
+
+  it('validates cancellation request creation and ids', () => {
+    expect(cancellationRequestCreateSchema.safeParse({ appointmentId: serviceId, reason: 'Verhinderd' }).success).toBe(true)
+    expect(cancellationRequestCreateSchema.safeParse({ appointmentId: serviceId, reason: '   ' }).success).toBe(false)
+    expect(cancellationRequestCreateSchema.safeParse({ appointmentId: 'nope', reason: 'Verhinderd' }).success).toBe(false)
+    expect(cancellationRequestIdSchema.safeParse({ id: serviceId }).success).toBe(true)
+    expect(cancellationRequestIdSchema.safeParse({ id: 'nope' }).success).toBe(false)
   })
 })

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import type { SafeUser } from '../auth/auth.schemas'
-import { authorizeAppointmentCreate, authorizeAppointmentRead } from './appointment.authorization'
+import { authorizeAppointmentCreate, authorizeAppointmentRead, requireAppointmentMutationAccess, requireStaffMutationActor, resolveMutationActor } from './appointment.authorization'
 
 const customer: SafeUser = { id: '00000000-0000-0000-0000-000000000001', email: 'customer@example.com', role: 'customer', name: 'Customer', phone: '0612345678' }
 const staff: SafeUser = { id: '00000000-0000-0000-0000-000000000002', email: 'staff@example.com', role: 'staff', name: 'Staff', phone: '0612345678' }
@@ -34,5 +34,25 @@ describe('appointment authorization', () => {
     expect(() => authorizeAppointmentRead(customer, customer.id)).not.toThrow()
     expect(thrownCode(() => authorizeAppointmentRead(customer, staff.id))).toBe('FORBIDDEN')
     expect(() => authorizeAppointmentRead(staff, customer.id)).not.toThrow()
+  })
+
+  it('resolves mutation actors from authenticated users', () => {
+    expect(resolveMutationActor(customer)).toEqual({ kind: 'customer', userId: customer.id })
+    expect(resolveMutationActor(staff)).toEqual({ kind: 'staff', userId: staff.id })
+  })
+
+  it('permits staff mutation access and customer access only on own appointments', () => {
+    const staffActor = resolveMutationActor(staff)
+    const customerActor = resolveMutationActor(customer)
+    expect(() => requireAppointmentMutationAccess(staffActor, customer.id)).not.toThrow()
+    expect(() => requireAppointmentMutationAccess(staffActor, null)).not.toThrow()
+    expect(() => requireAppointmentMutationAccess(customerActor, customer.id)).not.toThrow()
+    expect(thrownCode(() => requireAppointmentMutationAccess(customerActor, staff.id))).toBe('FORBIDDEN')
+    expect(thrownCode(() => requireAppointmentMutationAccess(customerActor, null))).toBe('FORBIDDEN')
+  })
+
+  it('only permits staff to perform status mutations', () => {
+    expect(() => requireStaffMutationActor(resolveMutationActor(staff))).not.toThrow()
+    expect(thrownCode(() => requireStaffMutationActor(resolveMutationActor(customer)))).toBe('FORBIDDEN')
   })
 })

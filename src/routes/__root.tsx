@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react'
 import { Outlet, createRootRoute, HeadContent, Scripts } from '@tanstack/react-router'
 import { AuthProvider } from '../auth/AuthContext'
-import { AppointmentProvider } from '../auth/AppointmentContext'
 import { WaitingListProvider } from '../auth/WaitingListContext'
 import '../styles/theme.css'
 
@@ -10,7 +9,7 @@ function RootDocument({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
-  return <RootDocument><AuthProvider><AppointmentProvider><WaitingListProvider><Outlet /></WaitingListProvider></AppointmentProvider></AuthProvider></RootDocument>
+  return <RootDocument><AuthProvider><WaitingListProvider><Outlet /></WaitingListProvider></AuthProvider></RootDocument>
 }
 
 function RootError({ error }: { error: Error }) {

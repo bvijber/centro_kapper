@@ -1,6 +1,7 @@
 export * from './appointments'
 export * from './audit-logs'
 export * from './business'
+export * from './cancellation-requests'
 export * from './enums'
 export * from './profiles'
 export * from './rate-limits'

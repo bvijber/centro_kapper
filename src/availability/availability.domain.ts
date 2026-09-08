@@ -4,7 +4,7 @@ import { getAmsterdamDayBounds, getAmsterdamWeekday, parseAmsterdamLocal } from 
 
 export type AvailabilityOpeningHour = { weekday: number; isOpen: boolean; openingTime: string | null; closingTime: string | null }
 export type AvailabilityInterval = { startsAt: Date; endsAt: Date }
-export type AvailabilityAppointment = AvailabilityInterval & { status: 'new' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'; slotReleasedAt: Date | null }
+export type AvailabilityAppointment = AvailabilityInterval & { id?: string; status: 'new' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show'; slotReleasedAt: Date | null }
 export type AvailabilityOverrides = { openingHours: boolean; break: boolean; wholeDayBlock: boolean }
 
 export type AvailabilityInput = {

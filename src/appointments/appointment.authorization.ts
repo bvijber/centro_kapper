@@ -7,6 +7,24 @@ export type AppointmentActor =
   | { kind: 'staff'; userId: string }
   | { kind: 'guest' }
 
+export type AppointmentMutationActor = { kind: 'customer'; userId: string } | { kind: 'staff'; userId: string }
+
+export function resolveMutationActor(user: SafeUser): AppointmentMutationActor {
+  return user.role === 'staff' ? { kind: 'staff', userId: user.id } : { kind: 'customer', userId: user.id }
+}
+
+export function requireAppointmentMutationAccess(actor: AppointmentMutationActor, customerUserId: string | null): void {
+  if (actor.kind === 'customer' && customerUserId !== actor.userId) {
+    throw new AuthError('Geen toegang.', 'FORBIDDEN')
+  }
+}
+
+export function requireStaffMutationActor(actor: AppointmentMutationActor): void {
+  if (actor.kind !== 'staff') {
+    throw new AuthError('Alleen de barber kan deze actie uitvoeren.', 'FORBIDDEN')
+  }
+}
+
 function hasGuestInput(input: AppointmentCreateInput): boolean {
   return input.guestName !== undefined || input.guestPhone !== undefined || input.guestEmail !== undefined
 }
