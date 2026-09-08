@@ -15,8 +15,12 @@ describe.skipIf(!databaseAvailable)('appointment concurrency integration', () =>
     const email = `phase3-${barberId}@example.com`
     const startsAt = new Date('2099-01-01T09:37:00.000Z')
 
-    await db.insert(users).values({ id: barberId, email, role: 'staff' })
-    await db.insert(staffProfiles).values({ userId: barberId, displayName: 'Phase 3 Test Barber', phone: '0612345678', active: true })
+    const [existingBarber] = await db.select({ id: users.id }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id)).where(and(eq(users.role, 'staff'), eq(staffProfiles.active, true))).limit(1)
+    const fixtureBarberId = existingBarber?.id ?? barberId
+    if (!existingBarber) {
+      await db.insert(users).values({ id: barberId, email, role: 'staff' })
+      await db.insert(staffProfiles).values({ userId: barberId, displayName: 'Phase 3 Test Barber', phone: '0612345678', active: true })
+    }
     await db.insert(services).values({ id: serviceId, name: 'Phase 3 Test Service', description: 'Concurrency fixture', durationMinutes: 30, priceCents: 1000, active: true })
     await db.insert(bookingSettings).values({ id: 1 }).onConflictDoNothing()
 
@@ -49,8 +53,10 @@ describe.skipIf(!databaseAvailable)('appointment concurrency integration', () =>
       }
       await db.delete(appointments).where(eq(appointments.serviceId, serviceId))
       await db.delete(services).where(eq(services.id, serviceId))
-      await db.delete(staffProfiles).where(eq(staffProfiles.userId, barberId))
-      await db.delete(users).where(eq(users.id, barberId))
+      if (!existingBarber) {
+        await db.delete(staffProfiles).where(eq(staffProfiles.userId, fixtureBarberId))
+        await db.delete(users).where(eq(users.id, fixtureBarberId))
+      }
     }
   })
 })

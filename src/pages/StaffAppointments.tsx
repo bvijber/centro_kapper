@@ -6,11 +6,12 @@ import { useAppointments } from '../auth/AppointmentContext'
 import { Card } from '../components/Card'
 import { StaffBottomNav } from '../components/StaffBottomNav'
 import logo from '../assets/logo_centro_kapper.jpeg'
+import { addCalendarDays, formatAmsterdamDate, formatAmsterdamDateKey } from '../timezone'
 
 const statusClass: Record<AppointmentStatus, string> = { Nieuw: 'new', Bevestigd: 'confirmed', 'In behandeling': 'new', Afgerond: 'done', Geannuleerd: 'cancelled', 'Niet verschenen': 'noshow' }
-const todayKey = () => new Date().toISOString().slice(0, 10)
-const dateKey = (offset: number) => { const date = new Date(); date.setDate(date.getDate() + offset); return date.toISOString().slice(0, 10) }
-const dateLabel = (date: string) => new Intl.DateTimeFormat('nl-NL', { weekday: 'short', day: 'numeric', month: 'short' }).format(new Date(`${date}T12:00:00`))
+const todayKey = () => formatAmsterdamDateKey(new Date())
+const dateKey = (offset: number) => addCalendarDays(todayKey(), offset)
+const dateLabel = (date: string) => formatAmsterdamDate(new Date(`${date}T12:00:00Z`))
 
 type FormState = Omit<Appointment, 'id' | 'duration'>
 const emptyForm: FormState = { date: todayKey(), time: '09:00', customer: '', service: services[0].name, phone: '', email: '', status: 'Bevestigd', note: '', source: 'Medewerker toegevoegd' }

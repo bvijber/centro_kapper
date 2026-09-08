@@ -4,7 +4,9 @@ const optionalText = z.string().trim().min(1).optional()
 
 export const appointmentCreateSchema = z.object({
   serviceId: z.string().uuid(),
-  startsAt: z.coerce.date(),
+  startsAt: z.coerce.date().optional(),
+  localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  localTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
   customerUserId: z.string().uuid().optional(),
   guestName: optionalText,
   guestPhone: optionalText,
@@ -14,6 +16,12 @@ export const appointmentCreateSchema = z.object({
   overrideBreak: z.boolean().default(false),
   overrideWholeDayBlock: z.boolean().default(false),
 }).superRefine((value, context) => {
+  if (!value.startsAt && (!value.localDate || !value.localTime)) {
+    context.addIssue({ code: 'custom', message: 'Een lokale datum en tijd zijn verplicht.', path: ['localDate'] })
+  }
+  if (value.startsAt && (value.localDate || value.localTime) && (!value.localDate || !value.localTime)) {
+    context.addIssue({ code: 'custom', message: 'Lokale datum en tijd zijn samen verplicht.', path: ['localDate'] })
+  }
   const hasGuestName = value.guestName !== undefined
   const hasGuestPhone = value.guestPhone !== undefined
   const hasGuestIdentity = hasGuestName || hasGuestPhone || value.guestEmail !== undefined

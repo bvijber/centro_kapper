@@ -12,9 +12,9 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CustomerRouteImport } from './routes/_customer'
 import { Route as StaffRouteImport } from './routes/_staff'
+import { Route as BookingRouteImport } from './routes/booking'
 import { Route as CreateAccountRouteImport } from './routes/create-account'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as CustomerBookingRouteImport } from './routes/_customer/booking'
 import { Route as CustomerBookingsRouteImport } from './routes/_customer/bookings'
 import { Route as CustomerHomeRouteImport } from './routes/_customer/home'
 import { Route as CustomerProfileRouteImport } from './routes/_customer/profile'
@@ -37,6 +37,11 @@ const StaffRoute = StaffRouteImport.update({
   id: '/_staff',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BookingRoute = BookingRouteImport.update({
+  id: '/booking',
+  path: '/booking',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CreateAccountRoute = CreateAccountRouteImport.update({
   id: '/create-account',
   path: '/create-account',
@@ -46,11 +51,6 @@ const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
   getParentRoute: () => rootRouteImport,
-} as any)
-const CustomerBookingRoute = CustomerBookingRouteImport.update({
-  id: '/booking',
-  path: '/booking',
-  getParentRoute: () => CustomerRoute,
 } as any)
 const CustomerBookingsRoute = CustomerBookingsRouteImport.update({
   id: '/bookings',
@@ -95,9 +95,9 @@ const StaffStaffQueueRoute = StaffStaffQueueRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/booking': typeof BookingRoute
   '/create-account': typeof CreateAccountRoute
   '/login': typeof LoginRoute
-  '/booking': typeof CustomerBookingRoute
   '/bookings': typeof CustomerBookingsRoute
   '/home': typeof CustomerHomeRoute
   '/profile': typeof CustomerProfileRoute
@@ -109,9 +109,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/booking': typeof BookingRoute
   '/create-account': typeof CreateAccountRoute
   '/login': typeof LoginRoute
-  '/booking': typeof CustomerBookingRoute
   '/bookings': typeof CustomerBookingsRoute
   '/home': typeof CustomerHomeRoute
   '/profile': typeof CustomerProfileRoute
@@ -126,9 +126,9 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/_customer': typeof CustomerRouteWithChildren
   '/_staff': typeof StaffRouteWithChildren
+  '/booking': typeof BookingRoute
   '/create-account': typeof CreateAccountRoute
   '/login': typeof LoginRoute
-  '/_customer/booking': typeof CustomerBookingRoute
   '/_customer/bookings': typeof CustomerBookingsRoute
   '/_customer/home': typeof CustomerHomeRoute
   '/_customer/profile': typeof CustomerProfileRoute
@@ -142,9 +142,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/booking'
     | '/create-account'
     | '/login'
-    | '/booking'
     | '/bookings'
     | '/home'
     | '/profile'
@@ -156,9 +156,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/booking'
     | '/create-account'
     | '/login'
-    | '/booking'
     | '/bookings'
     | '/home'
     | '/profile'
@@ -172,9 +172,9 @@ export interface FileRouteTypes {
     | '/'
     | '/_customer'
     | '/_staff'
+    | '/booking'
     | '/create-account'
     | '/login'
-    | '/_customer/booking'
     | '/_customer/bookings'
     | '/_customer/home'
     | '/_customer/profile'
@@ -189,6 +189,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CustomerRoute: typeof CustomerRouteWithChildren
   StaffRoute: typeof StaffRouteWithChildren
+  BookingRoute: typeof BookingRoute
   CreateAccountRoute: typeof CreateAccountRoute
   LoginRoute: typeof LoginRoute
 }
@@ -216,6 +217,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StaffRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/booking': {
+      id: '/booking'
+      path: '/booking'
+      fullPath: '/booking'
+      preLoaderRoute: typeof BookingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/create-account': {
       id: '/create-account'
       path: '/create-account'
@@ -229,13 +237,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
-    }
-    '/_customer/booking': {
-      id: '/_customer/booking'
-      path: '/booking'
-      fullPath: '/booking'
-      preLoaderRoute: typeof CustomerBookingRouteImport
-      parentRoute: typeof CustomerRoute
     }
     '/_customer/bookings': {
       id: '/_customer/bookings'
@@ -297,7 +298,6 @@ declare module '@tanstack/react-router' {
 }
 
 interface CustomerRouteChildren {
-  CustomerBookingRoute: typeof CustomerBookingRoute
   CustomerBookingsRoute: typeof CustomerBookingsRoute
   CustomerHomeRoute: typeof CustomerHomeRoute
   CustomerProfileRoute: typeof CustomerProfileRoute
@@ -305,7 +305,6 @@ interface CustomerRouteChildren {
 }
 
 const CustomerRouteChildren: CustomerRouteChildren = {
-  CustomerBookingRoute: CustomerBookingRoute,
   CustomerBookingsRoute: CustomerBookingsRoute,
   CustomerHomeRoute: CustomerHomeRoute,
   CustomerProfileRoute: CustomerProfileRoute,
@@ -336,6 +335,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CustomerRoute: CustomerRouteWithChildren,
   StaffRoute: StaffRouteWithChildren,
+  BookingRoute: BookingRoute,
   CreateAccountRoute: CreateAccountRoute,
   LoginRoute: LoginRoute,
 }
