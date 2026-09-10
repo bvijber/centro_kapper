@@ -32,5 +32,9 @@ export const queueStatusUpdateSchema = z.object({
   appointmentId: z.string().uuid().optional(),
 })
 
+export const queueStartServiceSchema = queueStatusUpdateSchema
+  .pick({ id: true, appointmentId: true })
+  .extend({ status: z.literal('in_service') })
+
 export type QueueJoinInput = z.infer<typeof queueJoinSchema>
 export type QueueStatusUpdateInput = z.infer<typeof queueStatusUpdateSchema>

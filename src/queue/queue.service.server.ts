@@ -5,6 +5,7 @@ import { AuthError } from '../auth/auth.errors'
 import { db } from '../db/client.server'
 import { services } from '../db/schema/services'
 import { users } from '../db/schema/users'
+import { getBookingSettings } from '../settings/settings.service.server'
 import { formatAmsterdamDateKey } from '../timezone'
 import {
   authorizeQueueJoin,
@@ -14,7 +15,7 @@ import {
   type QueueActor,
   type QueueMutationActor,
 } from './queue.authorization'
-import { canTransitionQueueStatus, calculateEstimatedWaitMinutes, isActiveQueueStatus, type QueueStatus } from './queue.domain'
+import { canTransitionQueueStatus, calculateEstimatedWaitMinutes, calculateQueuePosition, compareQueueOrder, isActiveQueueStatus, type QueueStatus } from './queue.domain'
 import {
   acquireQueueLock,
   findActiveCustomerEntry,
@@ -53,6 +54,12 @@ export type QueueEntryDTO = {
   createdByUserId: string | null
   createdAt: Date
   updatedAt: Date
+}
+
+export type QueueEntryMetadata = {
+  position: number
+  count: number
+  estimatedWaitMinutes: number
 }
 
 type QueueRow = Awaited<ReturnType<typeof listQueueEntries>>[number]
@@ -172,6 +179,34 @@ export async function getQueueEntry(id: string, actor: QueueActor | null): Promi
   const details = await findDetails(db, id, entry.queueDate)
   if (!details) throw new QueueError('Queue-entry niet gevonden.', 'NOT_FOUND')
   return details
+}
+
+export async function getQueueEntryMetadata(id: string, actor: QueueActor | null): Promise<QueueEntryMetadata> {
+  try {
+    const entry = await findQueueEntryById(db, id)
+    if (!entry) throw new QueueError('Queue-entry niet gevonden.', 'NOT_FOUND')
+    requireQueueEntryAccess(actor, entry)
+
+    const [settings, activeEntries] = await Promise.all([
+      getBookingSettings(),
+      listActiveQueueEntries(db, entry.queueDate),
+    ])
+    const target = activeEntries.find((activeEntry) => activeEntry.id === id)
+    if (!target) throw new QueueError('Actieve queue-entry niet gevonden.', 'NOT_FOUND')
+
+    const position = calculateQueuePosition(activeEntries, id)
+    if (position === null) throw new QueueError('Actieve queue-entry niet gevonden.', 'NOT_FOUND')
+
+    const entriesAhead = activeEntries.filter((activeEntry) => compareQueueOrder(activeEntry, target) < 0)
+    return {
+      position,
+      count: entriesAhead.length,
+      estimatedWaitMinutes: calculateEstimatedWaitMinutes(entriesAhead, settings.bufferMinutes),
+    }
+  } catch (error) {
+    if (error instanceof QueueError || error instanceof AuthError) throw error
+    throw new QueueError('Queue-informatie kon niet worden geladen.', 'FAILED')
+  }
 }
 
 export async function listStaffQueue(queueDate: string, actor: QueueMutationActor): Promise<QueueEntryDTO[]> {
