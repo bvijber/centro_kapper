@@ -15,10 +15,10 @@ import { Route as StaffRouteImport } from './routes/_staff'
 import { Route as BookingRouteImport } from './routes/booking'
 import { Route as CreateAccountRouteImport } from './routes/create-account'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as QueueRouteImport } from './routes/queue'
 import { Route as CustomerBookingsRouteImport } from './routes/_customer/bookings'
 import { Route as CustomerHomeRouteImport } from './routes/_customer/home'
 import { Route as CustomerProfileRouteImport } from './routes/_customer/profile'
-import { Route as CustomerQueueRouteImport } from './routes/_customer/queue'
 import { Route as StaffStaffIndexRouteImport } from './routes/_staff/staff/index'
 import { Route as StaffStaffAppointmentsRouteImport } from './routes/_staff/staff/appointments'
 import { Route as StaffStaffProfileRouteImport } from './routes/_staff/staff/profile'
@@ -52,6 +52,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const QueueRoute = QueueRouteImport.update({
+  id: '/queue',
+  path: '/queue',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const CustomerBookingsRoute = CustomerBookingsRouteImport.update({
   id: '/bookings',
   path: '/bookings',
@@ -65,11 +70,6 @@ const CustomerHomeRoute = CustomerHomeRouteImport.update({
 const CustomerProfileRoute = CustomerProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
-  getParentRoute: () => CustomerRoute,
-} as any)
-const CustomerQueueRoute = CustomerQueueRouteImport.update({
-  id: '/queue',
-  path: '/queue',
   getParentRoute: () => CustomerRoute,
 } as any)
 const StaffStaffIndexRoute = StaffStaffIndexRouteImport.update({
@@ -98,10 +98,10 @@ export interface FileRoutesByFullPath {
   '/booking': typeof BookingRoute
   '/create-account': typeof CreateAccountRoute
   '/login': typeof LoginRoute
+  '/queue': typeof QueueRoute
   '/bookings': typeof CustomerBookingsRoute
   '/home': typeof CustomerHomeRoute
   '/profile': typeof CustomerProfileRoute
-  '/queue': typeof CustomerQueueRoute
   '/staff/appointments': typeof StaffStaffAppointmentsRoute
   '/staff/profile': typeof StaffStaffProfileRoute
   '/staff/queue': typeof StaffStaffQueueRoute
@@ -112,10 +112,10 @@ export interface FileRoutesByTo {
   '/booking': typeof BookingRoute
   '/create-account': typeof CreateAccountRoute
   '/login': typeof LoginRoute
+  '/queue': typeof QueueRoute
   '/bookings': typeof CustomerBookingsRoute
   '/home': typeof CustomerHomeRoute
   '/profile': typeof CustomerProfileRoute
-  '/queue': typeof CustomerQueueRoute
   '/staff/appointments': typeof StaffStaffAppointmentsRoute
   '/staff/profile': typeof StaffStaffProfileRoute
   '/staff/queue': typeof StaffStaffQueueRoute
@@ -129,10 +129,10 @@ export interface FileRoutesById {
   '/booking': typeof BookingRoute
   '/create-account': typeof CreateAccountRoute
   '/login': typeof LoginRoute
+  '/queue': typeof QueueRoute
   '/_customer/bookings': typeof CustomerBookingsRoute
   '/_customer/home': typeof CustomerHomeRoute
   '/_customer/profile': typeof CustomerProfileRoute
-  '/_customer/queue': typeof CustomerQueueRoute
   '/_staff/staff/appointments': typeof StaffStaffAppointmentsRoute
   '/_staff/staff/profile': typeof StaffStaffProfileRoute
   '/_staff/staff/queue': typeof StaffStaffQueueRoute
@@ -145,10 +145,10 @@ export interface FileRouteTypes {
     | '/booking'
     | '/create-account'
     | '/login'
+    | '/queue'
     | '/bookings'
     | '/home'
     | '/profile'
-    | '/queue'
     | '/staff/appointments'
     | '/staff/profile'
     | '/staff/queue'
@@ -159,10 +159,10 @@ export interface FileRouteTypes {
     | '/booking'
     | '/create-account'
     | '/login'
+    | '/queue'
     | '/bookings'
     | '/home'
     | '/profile'
-    | '/queue'
     | '/staff/appointments'
     | '/staff/profile'
     | '/staff/queue'
@@ -175,10 +175,10 @@ export interface FileRouteTypes {
     | '/booking'
     | '/create-account'
     | '/login'
+    | '/queue'
     | '/_customer/bookings'
     | '/_customer/home'
     | '/_customer/profile'
-    | '/_customer/queue'
     | '/_staff/staff/appointments'
     | '/_staff/staff/profile'
     | '/_staff/staff/queue'
@@ -192,6 +192,7 @@ export interface RootRouteChildren {
   BookingRoute: typeof BookingRoute
   CreateAccountRoute: typeof CreateAccountRoute
   LoginRoute: typeof LoginRoute
+  QueueRoute: typeof QueueRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -238,6 +239,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/queue': {
+      id: '/queue'
+      path: '/queue'
+      fullPath: '/queue'
+      preLoaderRoute: typeof QueueRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_customer/bookings': {
       id: '/_customer/bookings'
       path: '/bookings'
@@ -257,13 +265,6 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof CustomerProfileRouteImport
-      parentRoute: typeof CustomerRoute
-    }
-    '/_customer/queue': {
-      id: '/_customer/queue'
-      path: '/queue'
-      fullPath: '/queue'
-      preLoaderRoute: typeof CustomerQueueRouteImport
       parentRoute: typeof CustomerRoute
     }
     '/_staff/staff/': {
@@ -301,14 +302,12 @@ interface CustomerRouteChildren {
   CustomerBookingsRoute: typeof CustomerBookingsRoute
   CustomerHomeRoute: typeof CustomerHomeRoute
   CustomerProfileRoute: typeof CustomerProfileRoute
-  CustomerQueueRoute: typeof CustomerQueueRoute
 }
 
 const CustomerRouteChildren: CustomerRouteChildren = {
   CustomerBookingsRoute: CustomerBookingsRoute,
   CustomerHomeRoute: CustomerHomeRoute,
   CustomerProfileRoute: CustomerProfileRoute,
-  CustomerQueueRoute: CustomerQueueRoute,
 }
 
 const CustomerRouteWithChildren = CustomerRoute._addFileChildren(
@@ -338,6 +337,7 @@ const rootRouteChildren: RootRouteChildren = {
   BookingRoute: BookingRoute,
   CreateAccountRoute: CreateAccountRoute,
   LoginRoute: LoginRoute,
+  QueueRoute: QueueRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
