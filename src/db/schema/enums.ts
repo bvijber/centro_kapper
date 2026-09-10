@@ -20,9 +20,9 @@ export const cancellationRequestStatusEnum = pgEnum('cancellation_request_status
 
 export const waitingListStatusEnum = pgEnum('waiting_list_status', [
   'waiting',
-  'accepted',
   'called',
-  'rejected',
+  'in_service',
   'completed',
   'cancelled',
+  'skipped',
 ])

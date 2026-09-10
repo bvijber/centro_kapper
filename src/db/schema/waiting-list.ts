@@ -1,6 +1,7 @@
 import { relations, sql } from 'drizzle-orm'
 import { check, index, pgTable, text, timestamp, uniqueIndex, uuid, date } from 'drizzle-orm/pg-core'
 
+import { appointments } from './appointments'
 import { waitingListStatusEnum } from './enums'
 import { services } from './services'
 import { users } from './users'
@@ -15,15 +16,13 @@ export const waitingListEntries = pgTable(
     serviceId: uuid('service_id')
       .notNull()
       .references(() => services.id, { onDelete: 'restrict' }),
+    appointmentId: uuid('appointment_id').references(() => appointments.id, { onDelete: 'set null' }),
     queueDate: date('queue_date').notNull(),
     joinedAt: timestamp('joined_at', { withTimezone: true }).defaultNow().notNull(),
     status: waitingListStatusEnum('status').notNull().default('waiting'),
     note: text('note'),
-    acceptedAt: timestamp('accepted_at', { withTimezone: true }),
     calledAt: timestamp('called_at', { withTimezone: true }),
     completedAt: timestamp('completed_at', { withTimezone: true }),
-    rejectedAt: timestamp('rejected_at', { withTimezone: true }),
-    rejectedReason: text('rejected_reason'),
     createdByUserId: uuid('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at', { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
@@ -31,7 +30,10 @@ export const waitingListEntries = pgTable(
   (table) => ({
     activeCustomerDateUnique: uniqueIndex('waiting_list_active_customer_date_unique')
       .on(table.customerUserId, table.queueDate)
-      .where(sql`${table.customerUserId} IS NOT NULL AND ${table.status} IN ('waiting', 'accepted', 'called')`),
+      .where(sql`${table.customerUserId} IS NOT NULL AND ${table.status} IN ('waiting', 'called', 'in_service')`),
+    appointmentUnique: uniqueIndex('waiting_list_appointment_unique')
+      .on(table.appointmentId)
+      .where(sql`${table.appointmentId} IS NOT NULL`),
     queueOrderIndex: index('waiting_list_queue_date_joined_at_idx').on(table.queueDate, table.joinedAt),
     statusIndex: index('waiting_list_queue_date_status_idx').on(table.queueDate, table.status),
     partyCheck: check(
@@ -45,4 +47,5 @@ export const waitingListEntriesRelations = relations(waitingListEntries, ({ one 
   customer: one(users, { fields: [waitingListEntries.customerUserId], references: [users.id], relationName: 'customerWaitingEntries' }),
   creator: one(users, { fields: [waitingListEntries.createdByUserId], references: [users.id], relationName: 'createdWaitingEntries' }),
   service: one(services, { fields: [waitingListEntries.serviceId], references: [services.id] }),
+  appointment: one(appointments, { fields: [waitingListEntries.appointmentId], references: [appointments.id] }),
 }))
