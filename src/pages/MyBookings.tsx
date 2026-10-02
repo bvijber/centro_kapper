@@ -7,11 +7,12 @@ import { BookingCard } from '../components/BookingCard'
 import { Button } from '../components/Button'
 import { CustomerHeader } from '../components/CustomerHeader'
 import { addCalendarDays, formatAmsterdamDate, formatAmsterdamDateKey, getAmsterdamDateParts } from '../timezone'
+import { publicErrorMessage } from '../components/publicError'
 
 type Slot = { date: string; time: string; startsAt: string; endsAt: string }
 
 function errorMessage(caught: unknown): string {
-  return String(caught).replace(/^Error:\s*/, '')
+  return publicErrorMessage(caught)
 }
 
 const euro = (cents: number) => `€ ${(cents / 100).toFixed(2).replace('.', ',')}`
@@ -155,6 +156,7 @@ function ModifyModal({ appointment, onClose, onSaved }: { appointment: Appointme
   }, [serviceId, date])
 
   const dates = Array.from({ length: 14 }, (_, index) => addCalendarDays(formatAmsterdamDateKey(new Date()), index))
+  const today = formatAmsterdamDateKey(new Date())
 
   const submit = async () => {
     setError('')
@@ -187,6 +189,7 @@ function ModifyModal({ appointment, onClose, onSaved }: { appointment: Appointme
         </select></label>
       )}
       <div className="date-strip">
+        <label className="date-picker">Andere datum<input type="date" min={today} value={date} onChange={(event) => setDate(event.target.value)} /></label>
         {dates.map((value) => {
           const parts = getAmsterdamDateParts(new Date(`${value}T12:00:00Z`))
           return <button type="button" key={value} className={date === value ? 'selected' : ''} onClick={() => setDate(value)}>

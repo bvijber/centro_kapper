@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto'
 
 import { createServerFn } from '@tanstack/react-start'
-import { getRequestIP } from '@tanstack/react-start/server'
 
-import { requireCustomer, requireStaff } from '../auth/authorization'
+import { requireCustomer, requireOwner } from '../auth/authorization'
 import { getCurrentUser } from '../auth/auth.service.server'
 import { consumeRateLimit } from '../auth/rate-limit.server'
+import { getClientIP } from '../auth/request-context.server'
 import {
   authorizeQueueJoin,
   resolveQueueActor,
@@ -37,7 +37,7 @@ const QUEUE_RATE_WINDOW_SECONDS = 15 * 60
 
 function rateLimitSubject(actor: { kind: 'guest' | 'customer' | 'staff'; userId?: string }): string {
   return actor.kind === 'guest'
-    ? getRequestIP({ xForwardedFor: true }) ?? 'unknown'
+    ? getClientIP() ?? 'unknown'
     : actor.userId ?? 'unknown'
 }
 
@@ -62,20 +62,20 @@ export const getQueueEntryFn = createServerFn({ method: 'GET' })
   .validator(queueEntryIdSchema)
   .handler(async ({ data }) => {
     const user = await getCurrentUser()
-    return getQueueEntry(data.id, user ? resolveQueueActor(user) : { kind: 'guest' })
+    return getQueueEntry(data.id, user ? resolveQueueActor(user) : { kind: 'guest', capability: data.capability })
   })
 
 export const getQueueEntryPositionFn = createServerFn({ method: 'GET' })
   .validator(queueEntryIdSchema)
   .handler(async ({ data }) => {
     const user = await getCurrentUser()
-    return getQueueEntryMetadata(data.id, user ? resolveQueueActor(user) : { kind: 'guest' })
+    return getQueueEntryMetadata(data.id, user ? resolveQueueActor(user) : { kind: 'guest', capability: data.capability })
   })
 
 export const listStaffQueueFn = createServerFn({ method: 'GET' })
   .validator(queueDateSchema)
   .handler(async ({ data }) => {
-    const user = await requireStaff()
+    const user = await requireOwner()
     return listStaffQueue(data.queueDate, resolveQueueActor(user))
   })
 
@@ -90,7 +90,7 @@ export const leaveQueueFn = createServerFn({ method: 'POST' })
   .validator(queueEntryIdSchema)
   .handler(async ({ data }) => {
     const user = await getCurrentUser()
-    const actor = user ? resolveQueueActor(user) : { kind: 'guest' as const }
+    const actor = user ? resolveQueueActor(user) : { kind: 'guest' as const, capability: data.capability }
     await enforceQueueMutationRateLimit('leave', actor)
     return leaveQueue(data.id, actor)
   })
@@ -98,7 +98,7 @@ export const leaveQueueFn = createServerFn({ method: 'POST' })
 export const callQueueEntryFn = createServerFn({ method: 'POST' })
   .validator(queueEntryIdSchema)
   .handler(async ({ data }) => {
-    const user = await requireStaff()
+    const user = await requireOwner()
     const actor = resolveQueueActor(user)
     await enforceQueueMutationRateLimit('staff', actor)
     return callQueueEntry(data.id, actor)
@@ -107,7 +107,7 @@ export const callQueueEntryFn = createServerFn({ method: 'POST' })
 export const startQueueServiceFn = createServerFn({ method: 'POST' })
   .validator(queueStartServiceSchema)
   .handler(async ({ data }) => {
-    const user = await requireStaff()
+    const user = await requireOwner()
     const actor = resolveQueueActor(user)
     await enforceQueueMutationRateLimit('staff', actor)
     return startQueueService(data.id, actor, data.appointmentId)
@@ -116,7 +116,7 @@ export const startQueueServiceFn = createServerFn({ method: 'POST' })
 export const completeQueueEntryFn = createServerFn({ method: 'POST' })
   .validator(queueEntryIdSchema)
   .handler(async ({ data }) => {
-    const user = await requireStaff()
+    const user = await requireOwner()
     const actor = resolveQueueActor(user)
     await enforceQueueMutationRateLimit('staff', actor)
     return completeQueueEntry(data.id, actor)
@@ -125,7 +125,7 @@ export const completeQueueEntryFn = createServerFn({ method: 'POST' })
 export const cancelQueueEntryFn = createServerFn({ method: 'POST' })
   .validator(queueEntryIdSchema)
   .handler(async ({ data }) => {
-    const user = await requireStaff()
+    const user = await requireOwner()
     const actor = resolveQueueActor(user)
     await enforceQueueMutationRateLimit('staff', actor)
     return cancelQueueEntry(data.id, actor)
@@ -134,7 +134,7 @@ export const cancelQueueEntryFn = createServerFn({ method: 'POST' })
 export const skipQueueEntryFn = createServerFn({ method: 'POST' })
   .validator(queueEntryIdSchema)
   .handler(async ({ data }) => {
-    const user = await requireStaff()
+    const user = await requireOwner()
     const actor = resolveQueueActor(user)
     await enforceQueueMutationRateLimit('staff', actor)
     return skipQueueEntry(data.id, actor)
@@ -143,7 +143,7 @@ export const skipQueueEntryFn = createServerFn({ method: 'POST' })
 export const rejoinQueueEntryFn = createServerFn({ method: 'POST' })
   .validator(queueEntryIdSchema)
   .handler(async ({ data }) => {
-    const user = await requireStaff()
+    const user = await requireOwner()
     const actor = resolveQueueActor(user)
     await enforceQueueMutationRateLimit('staff', actor)
     return rejoinQueueEntry(data.id, actor)

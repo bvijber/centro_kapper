@@ -72,7 +72,7 @@ describe.skipIf(!databaseAvailable)('queue foundation integration', () => {
     }
   })
 
-  it('protects duplicate authenticated customer joins with the database and queue lock', async () => {
+  it('allows multiple authenticated customer entries and preserves distinct rows', async () => {
     const { db } = await import('../db/client.server')
     const { and, eq, inArray } = await import('drizzle-orm')
     const { auditLogs, customerProfiles, services, users, waitingListEntries } = await import('../db/schema')
@@ -90,8 +90,9 @@ describe.skipIf(!databaseAvailable)('queue foundation integration', () => {
         joinQueue({ serviceId }, { kind: 'customer', userId: customerId }),
         joinQueue({ serviceId }, { kind: 'customer', userId: customerId }),
       ])
-      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
-      expect(results.filter((result) => result.status === 'rejected')).toHaveLength(1)
+      expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(2)
+      const ids = results.filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof joinQueue>>> => result.status === 'fulfilled').map((result) => result.value.id)
+      expect(new Set(ids).size).toBe(2)
     } finally {
       const ids = results.filter((result): result is PromiseFulfilledResult<Awaited<ReturnType<typeof joinQueue>>> => result.status === 'fulfilled').map((result) => result.value.id)
       await db.delete(auditLogs).where(inArray(auditLogs.entityId, ids))

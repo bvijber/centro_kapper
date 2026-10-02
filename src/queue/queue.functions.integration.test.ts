@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
-  user: null as { id: string; email: string; role: 'customer' | 'staff'; name: string | null; phone: string | null } | null,
+  user: null as { id: string; email: string; role: 'customer' | 'owner' | 'staff'; name: string | null; phone: string | null } | null,
   rateAllowed: true,
 }))
 
@@ -49,6 +49,10 @@ vi.mock('../auth/authorization', async () => {
     }),
     requireStaff: vi.fn(async () => {
       if (state.user?.role !== 'staff') throw new AuthError('Geen toegang.', 'FORBIDDEN')
+      return state.user
+    }),
+    requireOwner: vi.fn(async () => {
+      if (state.user?.role !== 'staff' && state.user?.role !== 'owner') throw new AuthError('Geen toegang.', 'FORBIDDEN')
       return state.user
     }),
   }

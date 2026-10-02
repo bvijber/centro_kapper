@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
-import { getCurrentUserFn, loginFn, logoutFn } from './auth.functions'
+import { loginFn, logoutFn, refreshSessionFn } from './auth.functions'
 import type { SafeUser } from './auth.schemas'
 
-export type UserRole = SafeUser['role']
+export type UserRole = 'customer' | 'owner'
 
 type AuthContextValue = {
   user: SafeUser | null
@@ -20,7 +20,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true
-    void getCurrentUserFn()
+    void refreshSessionFn()
       .then((currentUser) => {
         if (active) setUser(currentUser)
       })

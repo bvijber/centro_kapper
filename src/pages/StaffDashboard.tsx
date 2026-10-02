@@ -7,9 +7,10 @@ import { getStaffDashboardFn } from '../dashboard/dashboard.functions'
 import type { StaffDashboardDTO } from '../dashboard/dashboard.service.server'
 import logo from '../assets/logo_centro_kapper.jpeg'
 import { StaffBottomNav } from '../components/StaffBottomNav'
+import { publicErrorMessage } from '../components/publicError'
 
 function errorMessage(caught: unknown): string {
-  return String(caught).replace(/^Error:\s*/, '')
+  return publicErrorMessage(caught)
 }
 
 const euro = (cents: number) => `€ ${(cents / 100).toFixed(2).replace('.', ',')}`
@@ -34,7 +35,7 @@ export function StaffDashboard() {
   return <main className="page shell staff-page">
     <header className="topbar">
       <div className="brand"><img src={logo} alt="Centro Kapper" /><span>Centro <b>Kapper</b></span></div>
-      <span className="staff-label">TEAM</span>
+      <span className="staff-label">EIGENAAR</span>
     </header>
     <p className="eyebrow">CENTRO KAPPER · BEHEER</p>
     <h1 className="staff-title">Goedemorgen,<br /><em>{user?.name}.</em></h1>
@@ -51,12 +52,12 @@ export function StaffDashboard() {
           <Card><CalendarDays /><span>Vandaag</span><strong>{metrics.appointmentsToday}</strong><small>afspraken</small></Card>
           <Card><CheckCircle2 /><span>Voltooid</span><strong>{metrics.completedToday}</strong><small>vandaag</small></Card>
           <Card><Inbox /><span>Verzoeken</span><strong>{metrics.pendingCancellationRequests}</strong><small>openstaand</small></Card>
-          <Card><UsersRound /><span>Team</span><strong>{metrics.activeStaff}</strong><small>barber</small></Card>
+          <Card><UsersRound /><span>Eigenaar</span><strong>{metrics.activeStaff}</strong><small>beheerder</small></Card>
         </div>
       </>
     )}
     {!loading && !error && metrics && (
-      <Link className="staff-link" to="/staff/queue"><Card><UsersRound /><div><b>Wachtrij beheren</b><small>Beheer de actieve wachtrij</small></div><ChevronRight /></Card></Link>
+       <Link className="staff-link" to="/owner/queue"><Card><UsersRound /><div><b>Wachtrij beheren</b><small>Beheer de actieve wachtrij</small></div><ChevronRight /></Card></Link>
     )}
     <StaffBottomNav />
   </main>

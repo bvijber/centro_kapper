@@ -13,6 +13,7 @@ export const waitingListEntries = pgTable(
     customerUserId: uuid('customer_user_id').references(() => users.id, { onDelete: 'set null' }),
     guestName: text('guest_name'),
     guestPhone: text('guest_phone'),
+    guestAccessTokenHash: text('guest_access_token_hash'),
     serviceId: uuid('service_id')
       .notNull()
       .references(() => services.id, { onDelete: 'restrict' }),
@@ -28,9 +29,6 @@ export const waitingListEntries = pgTable(
     updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
   },
   (table) => ({
-    activeCustomerDateUnique: uniqueIndex('waiting_list_active_customer_date_unique')
-      .on(table.customerUserId, table.queueDate)
-      .where(sql`${table.customerUserId} IS NOT NULL AND ${table.status} IN ('waiting', 'called', 'in_service')`),
     appointmentUnique: uniqueIndex('waiting_list_appointment_unique')
       .on(table.appointmentId)
       .where(sql`${table.appointmentId} IS NOT NULL`),

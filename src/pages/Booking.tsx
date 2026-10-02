@@ -3,10 +3,11 @@ import { Link, useNavigate as useTanStackNavigate } from '@tanstack/react-router
 import { useEffect, useState } from 'react'
 import { getCurrentUserFn } from '../auth/auth.functions'
 import { createAppointmentFn, getAvailabilityFn, listBookableServicesFn } from '../appointments/appointment.functions'
+import { getOpeningHoursFn } from '../settings/settings.functions'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { ServiceCard } from '../components/ServiceCard'
-import { addCalendarDays, formatAmsterdamDate, formatAmsterdamDateKey, getAmsterdamDateParts } from '../timezone'
+import { addCalendarDays, formatAmsterdamDate, formatAmsterdamDateKey, getAmsterdamDateParts, getAmsterdamWeekday } from '../timezone'
 
 type Service = { id: string; name: string; description: string; durationMinutes: number; priceCents: number }
 type Slot = { date: string; time: string; startsAt: string; endsAt: string }
@@ -30,11 +31,13 @@ export function Booking() {
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [openingHours, setOpeningHours] = useState<{ weekday: number; isOpen: boolean }[]>([])
 
   useEffect(() => {
     void Promise.all([
       listBookableServicesFn({ data: undefined }).then((result) => { setServices(result); setSelectedServiceId(result[0]?.id ?? '') }).catch(() => setError('Diensten konden niet worden geladen.')).finally(() => setLoadingServices(false)),
       getCurrentUserFn().then((result) => setUser(result ? { id: result.id } : null)).catch(() => setUser(null)),
+      getOpeningHoursFn({ data: undefined }).then(setOpeningHours).catch(() => {}),
     ])
   }, [])
 
@@ -49,7 +52,27 @@ export function Booking() {
       .finally(() => setLoadingSlots(false))
   }, [selectedServiceId, date])
 
-  const dates = Array.from({ length: 5 }, (_, index) => addCalendarDays(formatAmsterdamDateKey(new Date()), index))
+  const todayKey = formatAmsterdamDateKey(new Date())
+  const openWeekdays = openingHours.filter(h => h.isOpen).map(h => h.weekday)
+  const dates: string[] = []
+  let dayOffset = 0
+  while (dates.length < 14 && dayOffset < 60) {
+    const date = addCalendarDays(todayKey, dayOffset)
+    const weekday = getAmsterdamWeekday(date)
+    if (openWeekdays.length === 0 || openWeekdays.includes(weekday)) {
+      dates.push(date)
+    }
+    dayOffset++
+  }
+  const isPastDate = (dateStr: string) => dateStr < todayKey
+  const timeGroups = [
+    { label: 'OCHTEND', test: (h: number) => h >= 6 && h < 12 },
+    { label: 'MIDDAG', test: (h: number) => h >= 12 && h < 17 },
+    { label: 'AVOND', test: (h: number) => h >= 17 && h < 22 },
+  ]
+  const groupedSlots = timeGroups
+    .map((group) => ({ ...group, slots: slots.filter((slot) => group.test(Number(slot.time.split(':')[0]))) }))
+    .filter((group) => group.slots.length > 0)
   const submit = async () => {
     setError('')
     setSuccess('')
@@ -90,10 +113,13 @@ export function Booking() {
     {success && <p className="success-message" role="status">{success}</p>}
     <p className="eyebrow">KIES EEN SERVICE</p>
     {loadingServices ? <p>Bezig met laden...</p> : <div className="services">{services.map((service) => <ServiceCard key={service.id} service={serviceCard(service)} selected={selectedServiceId === service.id} onClick={() => setSelectedServiceId(service.id)} />)}</div>}
+    <div className="booking-sticky">
     <p className="eyebrow">KIES EEN DATUM</p>
-    <div className="dates">{dates.map((value) => { const parts = getAmsterdamDateParts(new Date(`${value}T12:00:00Z`)); return <button type="button" className={date === value ? 'chosen' : ''} onClick={() => setDate(value)} key={value}><span>{formatAmsterdamDate(new Date(`${value}T12:00:00Z`)).split(' ')[0]}</span><b>{parts.day}</b><small>{parts.month}</small></button> })}</div>
+    <label className="date-picker">Andere datum<input type="date" min={todayKey} value={date} onChange={(event) => setDate(event.target.value)} /></label>
+    <div className="dates">{dates.map((value) => { const parts = getAmsterdamDateParts(new Date(`${value}T12:00:00Z`)); const past = isPastDate(value); return <button type="button" className={`${date === value ? 'chosen' : ''}${past ? ' disabled' : ''}`} onClick={() => { if (!past) setDate(value) }} key={value} disabled={past}><span>{formatAmsterdamDate(new Date(`${value}T12:00:00Z`)).split(' ')[0]}</span><b>{parts.day}</b><small>{parts.month}</small></button> })}</div>
     <p className="eyebrow">KIES EEN TIJD</p>
-    {loadingSlots ? <p>Beschikbaarheid laden...</p> : slots.length === 0 ? <p>Geen beschikbare tijden op deze datum.</p> : <div className="times">{slots.map((slot) => <button type="button" className={time === slot.time ? 'chosen' : ''} onClick={() => setTime(slot.time)} key={slot.startsAt}>{slot.time}</button>)}</div>}
+    {loadingSlots ? <p>Beschikbaarheid laden...</p> : slots.length === 0 ? <p>Geen beschikbare tijden op deze datum.</p> : groupedSlots.map((group) => <div className="time-group" key={group.label}><span className="time-group-label">{group.label}</span><div className="times">{group.slots.map((slot) => <button type="button" className={time === slot.time ? 'chosen' : ''} onClick={() => setTime(slot.time)} key={slot.startsAt}>{slot.time}</button>)}</div></div>)}
+    </div>
     {!user && <Card className="booking-guest-form"><p className="eyebrow">JOUW GEGEVENS</p><label>Naam *<input value={guestName} onChange={(event) => setGuestName(event.target.value)} /></label><label>Telefoonnummer *<input value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} type="tel" /></label><label>E-mailadres<input value={guestEmail} onChange={(event) => setGuestEmail(event.target.value)} type="email" /></label></Card>}
     <Button onClick={() => void submit()} disabled={submitting}>{submitting ? 'Bezig...' : 'Bevestig afspraak'} <ChevronRight size={18} /></Button>
   </main>

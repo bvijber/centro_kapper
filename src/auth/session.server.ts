@@ -27,11 +27,11 @@ export function hashSessionToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
-function sessionLifetimeDays(role: 'customer' | 'staff'): number {
-  return role === 'staff' ? STAFF_SESSION_DAYS : CUSTOMER_SESSION_DAYS
+function sessionLifetimeDays(role: 'customer' | 'owner' | 'staff'): number {
+  return role === 'owner' || role === 'staff' ? STAFF_SESSION_DAYS : CUSTOMER_SESSION_DAYS
 }
 
-function setSessionCookie(token: string, expiresAt: Date): void {
+export function setSessionCookie(token: string, expiresAt: Date): void {
   setCookie(SESSION_COOKIE, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
@@ -78,7 +78,7 @@ async function loadSessionUser(tokenHash: string): Promise<{ session: typeof ses
   return safeUser ? { session: row.session, safeUser } : null
 }
 
-export async function createSession(userId: string, role: 'customer' | 'staff'): Promise<string> {
+export async function createSession(userId: string, role: 'customer' | 'owner' | 'staff'): Promise<string> {
   const token = generateSessionToken()
   const now = new Date()
   const expiresAt = new Date(now.getTime() + sessionLifetimeDays(role) * 24 * 60 * 60 * 1000)
@@ -116,8 +116,20 @@ export async function refreshCurrentSession(): Promise<SafeUser | null> {
   const requestedExpiry = new Date(now.getTime() + sessionLifetimeDays(current.safeUser.role) * 24 * 60 * 60 * 1000)
   const expiresAt = requestedExpiry < maximumExpiry ? requestedExpiry : maximumExpiry
   const nextToken = generateSessionToken()
-  await db.update(sessions).set({ revokedAt: now, lastSeenAt: now }).where(eq(sessions.id, current.session.id))
-  await db.insert(sessions).values({ userId: current.safeUser.id, tokenHash: hashSessionToken(nextToken), expiresAt, createdAt: now, lastSeenAt: now })
+  const refreshed = await db.transaction(async (tx) => {
+    const [revoked] = await tx
+      .update(sessions)
+      .set({ revokedAt: now, lastSeenAt: now })
+      .where(and(eq(sessions.id, current.session.id), isNull(sessions.revokedAt)))
+      .returning({ id: sessions.id })
+    if (!revoked) return false
+    await tx.insert(sessions).values({ userId: current.safeUser.id, tokenHash: hashSessionToken(nextToken), expiresAt, createdAt: now, lastSeenAt: now })
+    return true
+  })
+  if (!refreshed) {
+    clearSessionCookie()
+    return null
+  }
   setSessionCookie(nextToken, expiresAt)
   return current.safeUser
 }

@@ -65,8 +65,18 @@ describe.skipIf(!databaseAvailable)('appointment lifecycle integration', () => {
       const nearFuture = new Date(Date.now() + 30 * 60_000)
 
       const lifecycle = await insertAppointment(farFuture, null)
+      await expect(modifyAppointment(lifecycle.id, {
+        id: lifecycle.id,
+        localDate: '2099-02-02',
+        localTime: '09:07',
+        overrideOpeningHours: false,
+        overrideBreak: false,
+        overrideWholeDayBlock: false,
+        confirmOverlap: false,
+      }, staffActor)).rejects.toMatchObject({ code: 'INVALID' })
       const confirmed = await updateAppointmentStatus(lifecycle.id, 'confirmed', staffActor)
       expect(confirmed.status).toBe('confirmed')
+      await db.update(bookingSettings).set({ noShowReleaseBehavior: 'automatic' }).where(eq(bookingSettings.id, 1))
       const noShow = await updateAppointmentStatus(lifecycle.id, 'no_show', staffActor)
       expect(noShow.status).toBe('no_show')
       expect(noShow.slotReleasedAt).not.toBeNull()
@@ -88,7 +98,7 @@ describe.skipIf(!databaseAvailable)('appointment lifecycle integration', () => {
       const withinDeadline = await insertAppointment(nearFuture, customerId)
       await expect(cancelAppointment(withinDeadline.id, customerActor)).rejects.toMatchObject({ code: 'CONFLICT' })
       await expect(modifyAppointment(withinDeadline.id, { id: withinDeadline.id, serviceId, overrideOpeningHours: false, overrideBreak: false, overrideWholeDayBlock: false, confirmOverlap: false }, customerActor))
-        .rejects.toMatchObject({ code: 'CONFLICT' })
+        .rejects.toMatchObject({ code: 'INVALID' })
 
       const auditActions = await db.select({ action: auditLogs.action }).from(auditLogs).where(inArray(auditLogs.entityId, [...createdIds, ...requestIds]))
       const actions = auditActions.map((row) => row.action)

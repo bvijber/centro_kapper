@@ -10,7 +10,7 @@ vi.mock('../auth/auth.service.server', () => ({ getCurrentUser }))
 import { requireStaff } from '../auth/authorization'
 
 const customer: SafeUser = { id: 'customer-1', email: 'customer@example.com', role: 'customer', name: 'Customer', phone: '0612345678' }
-const staff: SafeUser = { id: 'staff-1', email: 'staff@example.com', role: 'staff', name: 'Staff', phone: '0612345678' }
+const staff: SafeUser = { id: 'owner-1', email: 'owner@example.com', role: 'owner', name: 'Owner', phone: '0612345678' }
 
 describe('settings authorization boundary', () => {
   beforeEach(() => getCurrentUser.mockReset())

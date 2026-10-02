@@ -7,9 +7,10 @@ import { useAuth } from '../auth/AuthContext'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { StaffBottomNav } from '../components/StaffBottomNav'
+import { publicErrorMessage } from '../components/publicError'
 
 function errorMessage(caught: unknown): string {
-  return String(caught).replace(/^Error:\s*/, '')
+  return publicErrorMessage(caught)
 }
 
 export function StaffProfile() {

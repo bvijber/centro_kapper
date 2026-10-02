@@ -14,10 +14,15 @@ export async function requireCustomer(): Promise<SafeUser> {
   return user
 }
 
-export async function requireStaff(): Promise<SafeUser> {
+export async function requireOwner(): Promise<SafeUser> {
   const user = await requireAuthenticatedUser()
-  if (user.role !== 'staff') throw new AuthError('Geen toegang.', 'FORBIDDEN')
+  if (user.role !== 'owner') throw new AuthError('Geen toegang.', 'FORBIDDEN')
   return user
+}
+
+/** @deprecated Legacy name retained only while old internal modules are migrated. */
+export async function requireStaff(): Promise<SafeUser> {
+  return requireOwner()
 }
 
 export async function requireOwnership(ownerUserId: string): Promise<SafeUser> {

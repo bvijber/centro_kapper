@@ -20,7 +20,7 @@ export const queueJoinSchema = z.object({
   }
 })
 
-export const queueEntryIdSchema = z.object({ id: z.string().uuid() })
+export const queueEntryIdSchema = z.object({ id: z.string().uuid(), capability: z.string().min(32).max(128).optional() })
 
 export const queueDateSchema = z.object({
   queueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),

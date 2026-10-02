@@ -1,10 +1,10 @@
 import { createServerFn } from '@tanstack/react-start'
-import { getRequestIP } from '@tanstack/react-start/server'
 import { createHash } from 'node:crypto'
 
-import { requireAuthenticatedUser, requireCustomer, requireStaff } from '../auth/authorization'
+import { requireAuthenticatedUser, requireCustomer, requireOwner } from '../auth/authorization'
 import { getCurrentUser } from '../auth/auth.service.server'
 import { consumeRateLimit } from '../auth/rate-limit.server'
+import { getClientIP } from '../auth/request-context.server'
 import { availabilitySchema } from '../availability/availability.schemas'
 import { authorizeAppointmentCreate, resolveMutationActor } from './appointment.authorization'
 import { AppointmentError, approveCancellationRequest, cancelAppointment, createAppointment, getAppointment, getAvailability, listBookableServices, listCancellationRequests, listCustomerAppointments, listStaffAppointments, modifyAppointment, rejectCancellationRequest, requestCancellation, updateAppointmentStatus, withdrawCancellationRequest } from './appointment.service.server'
@@ -23,7 +23,7 @@ import {
 export const createAppointmentFn = createServerFn({ method: 'POST' }).validator(appointmentCreateSchema).handler(async ({ data }) => {
   const user = await getCurrentUser()
   const actor = authorizeAppointmentCreate(data, user)
-  const rateValue = actor.kind === 'guest' ? getRequestIP({ xForwardedFor: true }) ?? 'unknown' : actor.userId
+  const rateValue = actor.kind === 'guest' ? getClientIP() ?? 'unknown' : actor.userId
   const rateKey = `appointment-create:${createHash('sha256').update(rateValue).digest('hex')}`
   if (!(await consumeRateLimit(rateKey, 20, 15 * 60))) throw new AppointmentError('Boeken is tijdelijk niet beschikbaar.', 'FAILED')
   return createAppointment(data, actor)
@@ -40,11 +40,11 @@ export const getAppointmentFn = createServerFn({ method: 'GET' }).validator(appo
 
 export const listAppointmentsFn = createServerFn({ method: 'GET' }).validator(appointmentListSchema).handler(async ({ data }) => {
   const user = await requireAuthenticatedUser()
-  return user.role === 'staff' ? listStaffAppointments(data) : listCustomerAppointments(user.id, data)
+  return user.role === 'owner' ? listStaffAppointments(data) : listCustomerAppointments(user.id, data)
 })
 
 export const updateAppointmentStatusFn = createServerFn({ method: 'POST' }).validator(appointmentStatusUpdateSchema).handler(async ({ data }) => {
-  const user = await requireStaff()
+  const user = await requireOwner()
   return updateAppointmentStatus(data.id, data.status, resolveMutationActor(user))
 })
 
@@ -69,12 +69,12 @@ export const withdrawCancellationRequestFn = createServerFn({ method: 'POST' }).
 })
 
 export const approveCancellationRequestFn = createServerFn({ method: 'POST' }).validator(cancellationRequestIdSchema).handler(async ({ data }) => {
-  const user = await requireStaff()
+  const user = await requireOwner()
   return approveCancellationRequest(data.id, resolveMutationActor(user))
 })
 
 export const rejectCancellationRequestFn = createServerFn({ method: 'POST' }).validator(cancellationRequestIdSchema).handler(async ({ data }) => {
-  const user = await requireStaff()
+  const user = await requireOwner()
   return rejectCancellationRequest(data.id, resolveMutationActor(user))
 })
 

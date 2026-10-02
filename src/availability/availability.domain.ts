@@ -50,14 +50,15 @@ export function calculateAvailableSlots(input: AvailabilityInput): AvailableSlot
   if (input.wholeDayBlocked && !overrides.wholeDayBlock) return []
   if ((!opening || !opening.isOpen || !opening.openingTime || !opening.closingTime) && !overrides.openingHours) return []
 
-  const startTime = opening?.openingTime ?? '00:00'
-  const endTime = opening?.closingTime ?? '24:00'
+  const startTime = overrides.openingHours ? '00:00' : opening?.openingTime ?? '00:00'
+  const endTime = overrides.openingHours ? '24:00' : opening?.closingTime ?? '24:00'
   const startMinute = Number(startTime.slice(0, 2)) * 60 + Number(startTime.slice(3))
   const endMinute = endTime === '24:00' ? 24 * 60 : Number(endTime.slice(0, 2)) * 60 + Number(endTime.slice(3))
+  const firstSlotMinute = startMinute + ((15 - (startMinute % 15)) % 15)
   const slots: AvailableSlot[] = []
 
-  // Minute precision is a technical representation of arbitrary start times, not a business slot interval.
-  for (let minute = startMinute; minute < endMinute; minute += 1) {
+  // Fixed 15-minute booking interval per BUSINESS_RULES.md section 3.
+  for (let minute = firstSlotMinute; minute < endMinute; minute += 15) {
     const time = formatLocalMinute(minute)
     const startsAt = parseAmsterdamLocal(input.date, time)
     if (!startsAt || !isSlotAvailable(input, startsAt)) continue

@@ -5,18 +5,18 @@ import type { QueueJoinInput } from './queue.schemas'
 export type QueueActor =
   | { kind: 'customer'; userId: string }
   | { kind: 'staff'; userId: string }
-  | { kind: 'guest' }
+  | { kind: 'guest'; capability?: string }
 
 export type QueueMutationActor = Exclude<QueueActor, { kind: 'guest' }>
 
 export function resolveQueueActor(user: SafeUser): QueueMutationActor {
-  return user.role === 'staff' ? { kind: 'staff', userId: user.id } : { kind: 'customer', userId: user.id }
+  return user.role === 'owner' || user.role === 'staff' ? { kind: 'staff', userId: user.id } : { kind: 'customer', userId: user.id }
 }
 
 export function authorizeQueueJoin(input: QueueJoinInput, user: SafeUser | null): QueueActor {
   const hasGuestIdentity = input.guestName !== undefined || input.guestPhone !== undefined
 
-  if (user?.role === 'staff') {
+  if (user?.role === 'owner' || user?.role === 'staff') {
     if (!input.customerUserId && !hasGuestIdentity) {
       throw new AuthError('Een customer of gast is verplicht.', 'FORBIDDEN')
     }
@@ -45,14 +45,14 @@ export function requireStaffQueueActor(actor: QueueMutationActor): void {
 
 export function requireQueueEntryAccess(
   actor: QueueActor | null,
-  entry: { customerUserId: string | null },
+  entry: { customerUserId: string | null; guestAccessTokenHash?: string | null },
 ): void {
   if (actor?.kind === 'staff') return
   if (actor?.kind === 'customer') {
     if (entry.customerUserId !== actor.userId) throw new AuthError('Geen toegang.', 'FORBIDDEN')
     return
   }
-  if (entry.customerUserId !== null) throw new AuthError('Geen toegang.', 'FORBIDDEN')
+  if (entry.customerUserId !== null || !actor?.capability || !entry.guestAccessTokenHash) throw new AuthError('Geen toegang.', 'FORBIDDEN')
 }
 
 export function requireQueueMutationOwnership(

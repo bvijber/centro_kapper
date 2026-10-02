@@ -13,7 +13,7 @@ export const customerProfiles = pgTable('customer_profiles', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
-export const staffProfiles = pgTable('staff_profiles', {
+export const staffProfiles = pgTable('owner_profiles', {
   userId: uuid('user_id')
     .primaryKey()
     .references(() => users.id, { onDelete: 'cascade' }),

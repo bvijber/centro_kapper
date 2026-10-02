@@ -11,7 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as CustomerRouteImport } from './routes/_customer'
-import { Route as StaffRouteImport } from './routes/_staff'
+import { Route as OwnerRouteImport } from './routes/_owner'
 import { Route as BookingRouteImport } from './routes/booking'
 import { Route as CreateAccountRouteImport } from './routes/create-account'
 import { Route as LoginRouteImport } from './routes/login'
@@ -19,10 +19,11 @@ import { Route as QueueRouteImport } from './routes/queue'
 import { Route as CustomerBookingsRouteImport } from './routes/_customer/bookings'
 import { Route as CustomerHomeRouteImport } from './routes/_customer/home'
 import { Route as CustomerProfileRouteImport } from './routes/_customer/profile'
-import { Route as StaffStaffIndexRouteImport } from './routes/_staff/staff/index'
-import { Route as StaffStaffAppointmentsRouteImport } from './routes/_staff/staff/appointments'
-import { Route as StaffStaffProfileRouteImport } from './routes/_staff/staff/profile'
-import { Route as StaffStaffQueueRouteImport } from './routes/_staff/staff/queue'
+import { Route as OwnerOwnerIndexRouteImport } from './routes/_owner/owner/index'
+import { Route as OwnerOwnerAppointmentsRouteImport } from './routes/_owner/owner/appointments'
+import { Route as OwnerOwnerProfileRouteImport } from './routes/_owner/owner/profile'
+import { Route as OwnerOwnerQueueRouteImport } from './routes/_owner/owner/queue'
+import { Route as OwnerOwnerSettingsRouteImport } from './routes/_owner/owner/settings'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -33,8 +34,8 @@ const CustomerRoute = CustomerRouteImport.update({
   id: '/_customer',
   getParentRoute: () => rootRouteImport,
 } as any)
-const StaffRoute = StaffRouteImport.update({
-  id: '/_staff',
+const OwnerRoute = OwnerRouteImport.update({
+  id: '/_owner',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BookingRoute = BookingRouteImport.update({
@@ -72,25 +73,30 @@ const CustomerProfileRoute = CustomerProfileRouteImport.update({
   path: '/profile',
   getParentRoute: () => CustomerRoute,
 } as any)
-const StaffStaffIndexRoute = StaffStaffIndexRouteImport.update({
-  id: '/staff/',
-  path: '/staff/',
-  getParentRoute: () => StaffRoute,
+const OwnerOwnerIndexRoute = OwnerOwnerIndexRouteImport.update({
+  id: '/owner/',
+  path: '/owner/',
+  getParentRoute: () => OwnerRoute,
 } as any)
-const StaffStaffAppointmentsRoute = StaffStaffAppointmentsRouteImport.update({
-  id: '/staff/appointments',
-  path: '/staff/appointments',
-  getParentRoute: () => StaffRoute,
+const OwnerOwnerAppointmentsRoute = OwnerOwnerAppointmentsRouteImport.update({
+  id: '/owner/appointments',
+  path: '/owner/appointments',
+  getParentRoute: () => OwnerRoute,
 } as any)
-const StaffStaffProfileRoute = StaffStaffProfileRouteImport.update({
-  id: '/staff/profile',
-  path: '/staff/profile',
-  getParentRoute: () => StaffRoute,
+const OwnerOwnerProfileRoute = OwnerOwnerProfileRouteImport.update({
+  id: '/owner/profile',
+  path: '/owner/profile',
+  getParentRoute: () => OwnerRoute,
 } as any)
-const StaffStaffQueueRoute = StaffStaffQueueRouteImport.update({
-  id: '/staff/queue',
-  path: '/staff/queue',
-  getParentRoute: () => StaffRoute,
+const OwnerOwnerQueueRoute = OwnerOwnerQueueRouteImport.update({
+  id: '/owner/queue',
+  path: '/owner/queue',
+  getParentRoute: () => OwnerRoute,
+} as any)
+const OwnerOwnerSettingsRoute = OwnerOwnerSettingsRouteImport.update({
+  id: '/owner/settings',
+  path: '/owner/settings',
+  getParentRoute: () => OwnerRoute,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -102,10 +108,11 @@ export interface FileRoutesByFullPath {
   '/bookings': typeof CustomerBookingsRoute
   '/home': typeof CustomerHomeRoute
   '/profile': typeof CustomerProfileRoute
-  '/staff/appointments': typeof StaffStaffAppointmentsRoute
-  '/staff/profile': typeof StaffStaffProfileRoute
-  '/staff/queue': typeof StaffStaffQueueRoute
-  '/staff/': typeof StaffStaffIndexRoute
+  '/owner/appointments': typeof OwnerOwnerAppointmentsRoute
+  '/owner/profile': typeof OwnerOwnerProfileRoute
+  '/owner/queue': typeof OwnerOwnerQueueRoute
+  '/owner/settings': typeof OwnerOwnerSettingsRoute
+  '/owner/': typeof OwnerOwnerIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -116,16 +123,17 @@ export interface FileRoutesByTo {
   '/bookings': typeof CustomerBookingsRoute
   '/home': typeof CustomerHomeRoute
   '/profile': typeof CustomerProfileRoute
-  '/staff/appointments': typeof StaffStaffAppointmentsRoute
-  '/staff/profile': typeof StaffStaffProfileRoute
-  '/staff/queue': typeof StaffStaffQueueRoute
-  '/staff': typeof StaffStaffIndexRoute
+  '/owner/appointments': typeof OwnerOwnerAppointmentsRoute
+  '/owner/profile': typeof OwnerOwnerProfileRoute
+  '/owner/queue': typeof OwnerOwnerQueueRoute
+  '/owner/settings': typeof OwnerOwnerSettingsRoute
+  '/owner': typeof OwnerOwnerIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/_customer': typeof CustomerRouteWithChildren
-  '/_staff': typeof StaffRouteWithChildren
+  '/_owner': typeof OwnerRouteWithChildren
   '/booking': typeof BookingRoute
   '/create-account': typeof CreateAccountRoute
   '/login': typeof LoginRoute
@@ -133,10 +141,11 @@ export interface FileRoutesById {
   '/_customer/bookings': typeof CustomerBookingsRoute
   '/_customer/home': typeof CustomerHomeRoute
   '/_customer/profile': typeof CustomerProfileRoute
-  '/_staff/staff/appointments': typeof StaffStaffAppointmentsRoute
-  '/_staff/staff/profile': typeof StaffStaffProfileRoute
-  '/_staff/staff/queue': typeof StaffStaffQueueRoute
-  '/_staff/staff/': typeof StaffStaffIndexRoute
+  '/_owner/owner/appointments': typeof OwnerOwnerAppointmentsRoute
+  '/_owner/owner/profile': typeof OwnerOwnerProfileRoute
+  '/_owner/owner/queue': typeof OwnerOwnerQueueRoute
+  '/_owner/owner/settings': typeof OwnerOwnerSettingsRoute
+  '/_owner/owner/': typeof OwnerOwnerIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -149,10 +158,11 @@ export interface FileRouteTypes {
     | '/bookings'
     | '/home'
     | '/profile'
-    | '/staff/appointments'
-    | '/staff/profile'
-    | '/staff/queue'
-    | '/staff/'
+    | '/owner/appointments'
+    | '/owner/profile'
+    | '/owner/queue'
+    | '/owner/settings'
+    | '/owner/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -163,15 +173,16 @@ export interface FileRouteTypes {
     | '/bookings'
     | '/home'
     | '/profile'
-    | '/staff/appointments'
-    | '/staff/profile'
-    | '/staff/queue'
-    | '/staff'
+    | '/owner/appointments'
+    | '/owner/profile'
+    | '/owner/queue'
+    | '/owner/settings'
+    | '/owner'
   id:
     | '__root__'
     | '/'
     | '/_customer'
-    | '/_staff'
+    | '/_owner'
     | '/booking'
     | '/create-account'
     | '/login'
@@ -179,16 +190,17 @@ export interface FileRouteTypes {
     | '/_customer/bookings'
     | '/_customer/home'
     | '/_customer/profile'
-    | '/_staff/staff/appointments'
-    | '/_staff/staff/profile'
-    | '/_staff/staff/queue'
-    | '/_staff/staff/'
+    | '/_owner/owner/appointments'
+    | '/_owner/owner/profile'
+    | '/_owner/owner/queue'
+    | '/_owner/owner/settings'
+    | '/_owner/owner/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CustomerRoute: typeof CustomerRouteWithChildren
-  StaffRoute: typeof StaffRouteWithChildren
+  OwnerRoute: typeof OwnerRouteWithChildren
   BookingRoute: typeof BookingRoute
   CreateAccountRoute: typeof CreateAccountRoute
   LoginRoute: typeof LoginRoute
@@ -211,11 +223,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomerRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_staff': {
-      id: '/_staff'
+    '/_owner': {
+      id: '/_owner'
       path: ''
       fullPath: '/'
-      preLoaderRoute: typeof StaffRouteImport
+      preLoaderRoute: typeof OwnerRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/booking': {
@@ -267,33 +279,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CustomerProfileRouteImport
       parentRoute: typeof CustomerRoute
     }
-    '/_staff/staff/': {
-      id: '/_staff/staff/'
-      path: '/staff'
-      fullPath: '/staff/'
-      preLoaderRoute: typeof StaffStaffIndexRouteImport
-      parentRoute: typeof StaffRoute
+    '/_owner/owner/': {
+      id: '/_owner/owner/'
+      path: '/owner'
+      fullPath: '/owner/'
+      preLoaderRoute: typeof OwnerOwnerIndexRouteImport
+      parentRoute: typeof OwnerRoute
     }
-    '/_staff/staff/appointments': {
-      id: '/_staff/staff/appointments'
-      path: '/staff/appointments'
-      fullPath: '/staff/appointments'
-      preLoaderRoute: typeof StaffStaffAppointmentsRouteImport
-      parentRoute: typeof StaffRoute
+    '/_owner/owner/appointments': {
+      id: '/_owner/owner/appointments'
+      path: '/owner/appointments'
+      fullPath: '/owner/appointments'
+      preLoaderRoute: typeof OwnerOwnerAppointmentsRouteImport
+      parentRoute: typeof OwnerRoute
     }
-    '/_staff/staff/profile': {
-      id: '/_staff/staff/profile'
-      path: '/staff/profile'
-      fullPath: '/staff/profile'
-      preLoaderRoute: typeof StaffStaffProfileRouteImport
-      parentRoute: typeof StaffRoute
+    '/_owner/owner/profile': {
+      id: '/_owner/owner/profile'
+      path: '/owner/profile'
+      fullPath: '/owner/profile'
+      preLoaderRoute: typeof OwnerOwnerProfileRouteImport
+      parentRoute: typeof OwnerRoute
     }
-    '/_staff/staff/queue': {
-      id: '/_staff/staff/queue'
-      path: '/staff/queue'
-      fullPath: '/staff/queue'
-      preLoaderRoute: typeof StaffStaffQueueRouteImport
-      parentRoute: typeof StaffRoute
+    '/_owner/owner/queue': {
+      id: '/_owner/owner/queue'
+      path: '/owner/queue'
+      fullPath: '/owner/queue'
+      preLoaderRoute: typeof OwnerOwnerQueueRouteImport
+      parentRoute: typeof OwnerRoute
+    }
+    '/_owner/owner/settings': {
+      id: '/_owner/owner/settings'
+      path: '/owner/settings'
+      fullPath: '/owner/settings'
+      preLoaderRoute: typeof OwnerOwnerSettingsRouteImport
+      parentRoute: typeof OwnerRoute
     }
   }
 }
@@ -314,26 +333,28 @@ const CustomerRouteWithChildren = CustomerRoute._addFileChildren(
   CustomerRouteChildren,
 )
 
-interface StaffRouteChildren {
-  StaffStaffAppointmentsRoute: typeof StaffStaffAppointmentsRoute
-  StaffStaffProfileRoute: typeof StaffStaffProfileRoute
-  StaffStaffQueueRoute: typeof StaffStaffQueueRoute
-  StaffStaffIndexRoute: typeof StaffStaffIndexRoute
+interface OwnerRouteChildren {
+  OwnerOwnerAppointmentsRoute: typeof OwnerOwnerAppointmentsRoute
+  OwnerOwnerProfileRoute: typeof OwnerOwnerProfileRoute
+  OwnerOwnerQueueRoute: typeof OwnerOwnerQueueRoute
+  OwnerOwnerSettingsRoute: typeof OwnerOwnerSettingsRoute
+  OwnerOwnerIndexRoute: typeof OwnerOwnerIndexRoute
 }
 
-const StaffRouteChildren: StaffRouteChildren = {
-  StaffStaffAppointmentsRoute: StaffStaffAppointmentsRoute,
-  StaffStaffProfileRoute: StaffStaffProfileRoute,
-  StaffStaffQueueRoute: StaffStaffQueueRoute,
-  StaffStaffIndexRoute: StaffStaffIndexRoute,
+const OwnerRouteChildren: OwnerRouteChildren = {
+  OwnerOwnerAppointmentsRoute: OwnerOwnerAppointmentsRoute,
+  OwnerOwnerProfileRoute: OwnerOwnerProfileRoute,
+  OwnerOwnerQueueRoute: OwnerOwnerQueueRoute,
+  OwnerOwnerSettingsRoute: OwnerOwnerSettingsRoute,
+  OwnerOwnerIndexRoute: OwnerOwnerIndexRoute,
 }
 
-const StaffRouteWithChildren = StaffRoute._addFileChildren(StaffRouteChildren)
+const OwnerRouteWithChildren = OwnerRoute._addFileChildren(OwnerRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CustomerRoute: CustomerRouteWithChildren,
-  StaffRoute: StaffRouteWithChildren,
+  OwnerRoute: OwnerRouteWithChildren,
   BookingRoute: BookingRoute,
   CreateAccountRoute: CreateAccountRoute,
   LoginRoute: LoginRoute,

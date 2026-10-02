@@ -22,7 +22,7 @@ export type LoginInput = z.infer<typeof loginSchema>
 export type SafeUser = {
   id: string
   email: string
-  role: 'customer' | 'staff'
+  role: 'customer' | 'owner' | 'staff'
   name: string
   phone: string
 }

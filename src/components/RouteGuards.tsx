@@ -5,7 +5,7 @@ import { useAuth, type UserRole } from '../auth/AuthContext'
 export function RequireAuth({ role }: { role?: UserRole }) {
   const { user, isLoading } = useAuth()
   const navigate = useNavigate()
-  const destination = !user ? '/login' : user.role === 'staff' ? '/staff' : '/home'
+  const destination = !user ? '/login' : user.role === 'owner' ? '/owner' : '/home'
   const blocked = !isLoading && (!user || (role && user.role !== role))
 
   useEffect(() => {

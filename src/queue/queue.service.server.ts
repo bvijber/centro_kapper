@@ -1,4 +1,5 @@
 import { and, eq, isNull } from 'drizzle-orm'
+import { createHash, randomBytes } from 'node:crypto'
 
 import { recordAuditEvent } from '../auth/audit.server'
 import { AuthError } from '../auth/auth.errors'
@@ -41,6 +42,7 @@ export type QueueEntryDTO = {
   customerUserId: string | null
   guestName: string | null
   guestPhone: string | null
+  guestCapability?: string
   serviceId: string
   serviceName: string
   serviceDurationMinutes: number
@@ -72,6 +74,7 @@ function mapQueueEntry(row: QueueRow): QueueEntryDTO {
     customerUserId: row.customerUserId,
     guestName: row.guestName,
     guestPhone: row.guestPhone,
+    guestCapability: undefined,
     serviceId: row.serviceId,
     serviceName: row.serviceName,
     serviceDurationMinutes: row.serviceDurationMinutes,
@@ -138,15 +141,14 @@ export async function joinQueue(input: QueueJoinInput, actor: QueueActor, now = 
           : null
       if (customerUserId) {
         await resolveCustomer(tx, customerUserId)
-        if (await findActiveCustomerEntry(tx, customerUserId, queueDate)) {
-          throw new QueueError('Deze customer staat al in de wachtrij.', 'CONFLICT')
-        }
       }
+      const guestCapability = actor.kind === 'guest' ? randomBytes(32).toString('base64url') : undefined
 
       const created = await insertQueueEntry(tx, {
         customerUserId,
         guestName: customerUserId ? null : input.guestName ?? null,
         guestPhone: customerUserId ? null : input.guestPhone ?? null,
+        guestAccessTokenHash: guestCapability ? createHash('sha256').update(guestCapability).digest('hex') : null,
         serviceId: service.id,
         queueDate,
         joinedAt: now,
@@ -164,7 +166,7 @@ export async function joinQueue(input: QueueJoinInput, actor: QueueActor, now = 
         entityId: result.id,
         metadata: auditMetadata(null, result, { identity: customerUserId ? 'customer' : 'guest' }),
       }, tx)
-      return result
+       return guestCapability ? { ...result, guestCapability } : result
     })
   } catch (error) {
     if (error instanceof QueueError || error instanceof AuthError) throw error
@@ -176,6 +178,7 @@ export async function getQueueEntry(id: string, actor: QueueActor | null): Promi
   const entry = await findQueueEntryById(db, id)
   if (!entry) throw new QueueError('Queue-entry niet gevonden.', 'NOT_FOUND')
   requireQueueEntryAccess(actor, entry)
+  if (actor?.kind === 'guest' && createHash('sha256').update(actor.capability ?? '').digest('hex') !== entry.guestAccessTokenHash) throw new AuthError('Geen toegang.', 'FORBIDDEN')
   const details = await findDetails(db, id, entry.queueDate)
   if (!details) throw new QueueError('Queue-entry niet gevonden.', 'NOT_FOUND')
   return details
@@ -186,6 +189,7 @@ export async function getQueueEntryMetadata(id: string, actor: QueueActor | null
     const entry = await findQueueEntryById(db, id)
     if (!entry) throw new QueueError('Queue-entry niet gevonden.', 'NOT_FOUND')
     requireQueueEntryAccess(actor, entry)
+    if (actor?.kind === 'guest' && createHash('sha256').update(actor.capability ?? '').digest('hex') !== entry.guestAccessTokenHash) throw new AuthError('Geen toegang.', 'FORBIDDEN')
 
     const [settings, activeEntries] = await Promise.all([
       getBookingSettings(),
@@ -239,7 +243,10 @@ async function transitionQueueEntry(
       if (targetStatus === 'waiting' && actor.kind !== 'staff') {
         throw new AuthError('Alleen de barber kan een queue-entry herplaatsen.', 'FORBIDDEN')
       }
-      if (actor.kind !== 'staff') requireQueueMutationOwnership(actor, current)
+       if (actor.kind !== 'staff') {
+         requireQueueMutationOwnership(actor, current)
+         if (actor.kind === 'guest' && createHash('sha256').update(actor.capability ?? '').digest('hex') !== current.guestAccessTokenHash) throw new AuthError('Geen toegang.', 'FORBIDDEN')
+       }
       const updated = await updateQueueEntry(tx, id, {
         status: targetStatus,
         joinedAt: options.joinedAt ?? undefined,
@@ -297,7 +304,31 @@ export function skipQueueEntry(id: string, actor: QueueMutationActor): Promise<Q
 
 export function rejoinQueueEntry(id: string, actor: QueueMutationActor, now = new Date()): Promise<QueueEntryDTO> {
   requireStaff(actor)
-  return transitionQueueEntry(id, 'waiting', actor, { joinedAt: now })
+  return db.transaction(async (tx) => {
+    const initial = await findQueueEntryById(tx, id)
+    if (!initial) throw new QueueError('Queue-entry niet gevonden.', 'NOT_FOUND')
+    await acquireQueueLock(tx, initial.queueDate)
+    const current = await findQueueEntryByIdForUpdate(tx, id)
+    if (!current || current.status !== 'skipped') throw new QueueError('Deze queue-entry kan niet opnieuw worden geplaatst.', 'INVALID')
+    const created = await insertQueueEntry(tx, {
+      customerUserId: current.customerUserId,
+      guestName: current.guestName,
+      guestPhone: current.guestPhone,
+      guestAccessTokenHash: current.guestAccessTokenHash,
+      serviceId: current.serviceId,
+      appointmentId: null,
+      queueDate: current.queueDate,
+      joinedAt: now,
+      status: 'waiting',
+      note: current.note,
+      createdByUserId: actor.userId,
+    })
+    if (!created) throw new QueueError('Queue-entry kon niet opnieuw worden geplaatst.', 'FAILED')
+    const result = await findDetails(tx, created.id, current.queueDate)
+    if (!result) throw new QueueError('Queue-entry kon niet worden geladen.', 'FAILED')
+    await recordAuditEvent({ action: 'queue.rejoin', actorUserId: actor.userId, entityType: 'waiting_list_entry', entityId: result.id, metadata: auditMetadata('skipped', result, { previousEntryId: current.id }) }, tx)
+    return result
+  })
 }
 
 export async function calculateQueueWaitTime(queueDate: string, entryId: string, bufferMinutes: number): Promise<number> {

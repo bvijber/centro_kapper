@@ -1,6 +1,8 @@
 import { pgEnum } from 'drizzle-orm/pg-core'
 
-export const userRoleEnum = pgEnum('user_role', ['customer', 'staff'])
+// `staff` remains in the enum only for backwards-compatible migration of old rows.
+// New runtime accounts and authorization use the single `owner` role.
+export const userRoleEnum = pgEnum('user_role', ['customer', 'owner', 'staff'])
 
 export const appointmentStatusEnum = pgEnum('appointment_status', [
   'new',

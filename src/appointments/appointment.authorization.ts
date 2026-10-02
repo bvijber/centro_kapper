@@ -10,7 +10,7 @@ export type AppointmentActor =
 export type AppointmentMutationActor = { kind: 'customer'; userId: string } | { kind: 'staff'; userId: string }
 
 export function resolveMutationActor(user: SafeUser): AppointmentMutationActor {
-  return user.role === 'staff' ? { kind: 'staff', userId: user.id } : { kind: 'customer', userId: user.id }
+  return user.role === 'owner' || user.role === 'staff' ? { kind: 'staff', userId: user.id } : { kind: 'customer', userId: user.id }
 }
 
 export function requireAppointmentMutationAccess(actor: AppointmentMutationActor, customerUserId: string | null): void {
@@ -34,7 +34,7 @@ function hasOverrideInput(input: AppointmentCreateInput): boolean {
 }
 
 export function authorizeAppointmentCreate(input: AppointmentCreateInput, user: SafeUser | null): AppointmentActor {
-  if (user?.role === 'staff') {
+  if (user?.role === 'owner' || user?.role === 'staff') {
     if (!input.customerUserId && !hasGuestInput(input)) {
       throw new AuthError('Een customer of gast is verplicht.', 'FORBIDDEN')
     }
@@ -51,8 +51,11 @@ export function authorizeAppointmentCreate(input: AppointmentCreateInput, user: 
     if (hasOverrideInput(input)) {
       throw new AuthError('Alleen staff mag availability overrides instellen.', 'FORBIDDEN')
     }
+    if (input.confirmOverlap) throw new AuthError('Alleen de eigenaar kan overlap bevestigen.', 'FORBIDDEN')
     return { kind: 'customer', userId: user.id }
   }
+
+  if (user?.role === 'customer' && input.confirmOverlap) throw new AuthError('Alleen de eigenaar kan overlap bevestigen.', 'FORBIDDEN')
 
   if (input.customerUserId !== undefined || !hasGuestInput(input)) {
     throw new AuthError('Log in of vul geldige gastgegevens in.', 'UNAUTHORIZED')
@@ -60,6 +63,7 @@ export function authorizeAppointmentCreate(input: AppointmentCreateInput, user: 
   if (hasOverrideInput(input)) {
     throw new AuthError('Alleen staff mag availability overrides instellen.', 'FORBIDDEN')
   }
+  if (input.confirmOverlap) throw new AuthError('Alleen de eigenaar kan overlap bevestigen.', 'FORBIDDEN')
   return { kind: 'guest' }
 }
 

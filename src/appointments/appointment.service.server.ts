@@ -228,6 +228,12 @@ function resolveLocalBooking(input: AppointmentCreateInput): { date: string; tim
   }
 }
 
+function assertBookingInterval(startsAt: Date) {
+  if (startsAt.getMinutes() % 15 !== 0) {
+    throw new AppointmentError('Starttijden moeten op een 15-minuteninterval vallen.', 'INVALID')
+  }
+}
+
 function auditMetadata(appointment: AppointmentDTO) {
   return {
     after: {
@@ -253,6 +259,7 @@ export async function createAppointment(input: AppointmentCreateInput, actor: Ap
   try {
     return await db.transaction(async (tx) => {
       const localBooking = resolveLocalBooking(input)
+      assertBookingInterval(localBooking.startsAt)
       const barberUserId = await resolveSingleBarber(tx)
       await acquireAppointmentLock(tx, barberUserId)
 
@@ -278,12 +285,14 @@ export async function createAppointment(input: AppointmentCreateInput, actor: Ap
       const endsAt = calculateOccupiedEnd(localBooking.startsAt, service.durationMinutes, settings.bufferMinutes)
       const [conflict] = await findOverlappingAppointments(tx, { startsAt: localBooking.startsAt, endsAt })
       if (conflict) {
-        throw new AppointmentError(
-          settings.overlapBehavior === 'allow_with_warning'
-            ? 'Dit tijdstip overlapt met een bestaande afspraak en vereist staffbevestiging.'
-            : 'Dit tijdstip overlapt met een bestaande afspraak.',
-          'CONFLICT',
-        )
+        if (actor.kind !== 'staff' || settings.overlapBehavior === 'block' || !input.confirmOverlap) {
+          throw new AppointmentError(
+            settings.overlapBehavior === 'allow_with_warning'
+              ? 'Dit tijdstip overlapt met een bestaande afspraak en vereist bevestiging van de eigenaar.'
+              : 'Dit tijdstip overlapt met een bestaande afspraak.',
+            'CONFLICT',
+          )
+        }
       }
 
       const created = await insertAppointment(tx, {
@@ -413,7 +422,11 @@ export async function updateAppointmentStatus(id: string, targetStatus: Appointm
         }
         const now = new Date()
         const values: Parameters<typeof updateAppointment>[2] = { status: targetStatus }
-        if (targetStatus === 'no_show') values.slotReleasedAt = now
+        if (targetStatus === 'no_show') {
+          const [settings] = await tx.select({ noShowReleaseBehavior: bookingSettings.noShowReleaseBehavior }).from(bookingSettings).where(eq(bookingSettings.id, 1)).limit(1)
+          if (!settings) throw new AppointmentError('Boekingsinstellingen ontbreken.', 'FAILED')
+          if (settings.noShowReleaseBehavior === 'automatic') values.slotReleasedAt = now
+        }
         if (targetStatus === 'completed') values.completedAt = now
         const updated = await updateAppointment(tx, id, values)
         if (!updated) throw new AppointmentError('Afspraak kon niet worden bijgewerkt.', 'FAILED')
@@ -486,11 +499,6 @@ export async function modifyAppointment(id: string, input: AppointmentModifyInpu
           if (input.overrideOpeningHours || input.overrideBreak || input.overrideWholeDayBlock) {
             throw new AuthError('Alleen staff mag availability overrides instellen.', 'FORBIDDEN')
           }
-          const settings = await loadBookingSettings(tx)
-          const remainingMs = appointment.startsAt.getTime() - Date.now()
-          if (remainingMs < settings.cancellationDeadlineMinutes * 60_000) {
-            throw new AppointmentError('Binnen 24 uur voor de afspraak kun je de afspraak niet meer wijzigen.', 'CONFLICT')
-          }
         }
 
         const settings = await loadBookingSettings(tx)
@@ -507,6 +515,7 @@ export async function modifyAppointment(id: string, input: AppointmentModifyInpu
           ? resolveLocalBooking({ serviceId, localDate: input.localDate, localTime: input.localTime, overrideOpeningHours: false, overrideBreak: false, overrideWholeDayBlock: false })
           : resolveLocalBooking({ serviceId, startsAt: appointment.startsAt, overrideOpeningHours: false, overrideBreak: false, overrideWholeDayBlock: false })
         const newStartsAt = localBooking.startsAt
+        assertBookingInterval(newStartsAt)
         const newEndsAt = calculateOccupiedEnd(newStartsAt, service.durationMinutes, settings.bufferMinutes)
 
         let customerUserId = appointment.customerUserId

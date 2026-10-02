@@ -75,18 +75,21 @@ De buffer wordt toegepast tussen afspraken. Totale bezette tijd voor beschikbaar
 
 # 3. Starttijden en slot interval
 
-Er is **geen vaste slot interval**.
+Er is een **vast bookinginterval van 15 minuten**.
 
-Starttijden zijn **dynamisch**. Een beschikbare starttijd wordt bepaald op basis van:
+Beschikbare starttijden zijn gebonden aan 15-minutenintervallen, bijvoorbeeld 09:00, 09:15, 09:30 en 09:45. Dit interval geldt voor zowel customers als staff. Een beschikbare starttijd wordt bepaald op basis van:
 
 - openingstijden;
 - breaks;
 - whole-day blocks;
 - bestaande bezette afspraken;
 - service duration;
-- algemene buffer.
+- algemene buffer;
+- het vaste bookinginterval van 15 minuten.
 
-Een afspraak moet volledig binnen de beschikbare periode passen. Er wordt geen afzonderlijke `slot_interval`-setting geïmplementeerd.
+Een afspraak moet volledig binnen de beschikbare periode passen. Service durations blijven dynamisch, bijvoorbeeld 35 minuten. De buffer blijft gelden. Wanneer een afspraak inclusief buffer eindigt op een niet-geïntervalleerd tijdstip, is het volgende beschikbare slot het eerstvolgende 15-minuteninterval. Een afspraak die inclusief buffer om 11:40 eindigt, maakt dus 11:45 beschikbaar als volgend slot.
+
+Er wordt geen configureerbare `slot_interval`-setting geïmplementeerd; het interval staat vast op 15 minuten.
 
 **Status: BESLOTEN**
 

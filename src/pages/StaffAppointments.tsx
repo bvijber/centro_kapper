@@ -8,12 +8,13 @@ import { Card } from '../components/Card'
 import { StaffBottomNav } from '../components/StaffBottomNav'
 import logo from '../assets/logo_centro_kapper.jpeg'
 import { addCalendarDays, formatAmsterdamDate, formatAmsterdamDateKey, getAmsterdamDateParts, formatAmsterdamTime } from '../timezone'
+import { publicErrorMessage } from '../components/publicError'
 
 type Slot = { date: string; time: string; startsAt: string; endsAt: string }
 type OverrideFlags = { overrideOpeningHours: boolean; overrideBreak: boolean; overrideWholeDayBlock: boolean }
 
 function errorMessage(caught: unknown): string {
-  return String(caught).replace(/^Error:\s*/, '')
+  return publicErrorMessage(caught)
 }
 
 const todayKey = () => formatAmsterdamDateKey(new Date())
@@ -113,7 +114,7 @@ export function StaffAppointments() {
 
   return <main className="page shell staff-page appointments-page">
     <header className="topbar">
-      <Link to="/staff" className="brand"><img src={logo} alt="Centro Kapper" /><span>Centro <b>Kapper</b></span></Link>
+      <Link to="/owner" className="brand"><img src={logo} alt="Centro Kapper" /><span>Centro <b>Kapper</b></span></Link>
       <Bell className="staff-bell" size={22} />
     </header>
     <p className="eyebrow">CENTRO KAPPER · BEHEER</p>
@@ -252,14 +253,21 @@ function CreateModal({ services, onClose, onCreated }: {
     services={services}
     initialServiceId=""
     initialDate={todayKey()}
-    showOverrides={false}
+    showOverrides
     onClose={onClose}
-    onSubmit={async ({ serviceId, localDate, localTime }) => {
+    onSubmit={async ({ serviceId, localDate, localTime, overrides }) => {
       if (!guestName.trim() || !guestPhone.trim()) {
         return { ok: false, message: 'Vul de naam en het telefoonnummer van de klant in.' }
       }
       try {
-        await createAppointmentFn({ data: { serviceId, localDate, localTime, guestName: guestName.trim(), guestPhone: guestPhone.trim(), guestEmail: guestEmail.trim() || undefined, note: note.trim() || undefined, overrideOpeningHours: false, overrideBreak: false, overrideWholeDayBlock: false } })
+        const data = { serviceId, localDate, localTime, guestName: guestName.trim(), guestPhone: guestPhone.trim(), guestEmail: guestEmail.trim() || undefined, note: note.trim() || undefined, ...overrides, confirmOverlap: false }
+        try {
+          await createAppointmentFn({ data })
+        } catch (caught) {
+          if (!String(caught).includes('vereist bevestiging')) throw caught
+          if (!window.confirm('Dit tijdstip overlapt. Toch opslaan?')) return { ok: false, message: 'De afspraak is niet opgeslagen.' }
+          await createAppointmentFn({ data: { ...data, confirmOverlap: true } })
+        }
         onCreated()
         return { ok: true }
       } catch (caught) {
@@ -339,6 +347,7 @@ function SlotMutationModal({ title, submitLabel, services, initialServiceId, ini
         {services.map((service) => <option key={service.id} value={service.id}>{service.name} · {formatPriceCents(service.priceCents)} · {service.durationMinutes} min</option>)}
       </select></label>
       <div className="date-strip">
+        <label className="date-picker">Andere datum<input type="date" min={todayKey()} value={date} onChange={(event) => setDate(event.target.value)} /></label>
         {dates.map((value) => {
           const parts = getAmsterdamDateParts(new Date(`${value}T12:00:00Z`))
           return <button type="button" key={value} className={date === value ? 'selected' : ''} onClick={() => setDate(value)}>

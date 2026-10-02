@@ -8,11 +8,12 @@
     "build": "vite build",
     "test": "vitest run",
     "test:watch": "vitest",
+    "lint": "tsc --noEmit --pretty false",
     "typecheck": "tsc -b",
     "preview": "vite preview",
     "db:check": "drizzle-kit check",
     "db:generate": "drizzle-kit generate",
-    "auth:create-staff": "tsx scripts/create-staff.ts"
+    "auth:create-owner": "tsx scripts/create-owner.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

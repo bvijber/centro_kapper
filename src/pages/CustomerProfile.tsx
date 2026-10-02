@@ -8,9 +8,10 @@ import { Button } from '../components/Button'
 import { BottomNav } from '../components/BottomNav'
 import { Card } from '../components/Card'
 import { CustomerHeader } from '../components/CustomerHeader'
+import { publicErrorMessage } from '../components/publicError'
 
 function errorMessage(caught: unknown): string {
-  return String(caught).replace(/^Error:\s*/, '')
+  return publicErrorMessage(caught)
 }
 
 export function CustomerProfile() {

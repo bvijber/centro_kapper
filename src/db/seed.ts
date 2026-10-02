@@ -5,7 +5,7 @@ import { staffProfiles } from './schema/profiles'
 import { users } from './schema/users'
 
 // DEVELOPMENT SEED DATA ONLY.
-// The address, staff name, phone number, hours, services, and prices below are
+// The address, owner name, phone number, hours, services, and prices below are
 // neutral placeholders and must be replaced with confirmed data before production.
 const placeholderStaffId = '00000000-0000-4000-8000-000000000001'
 
@@ -39,7 +39,7 @@ async function seed() {
       id: placeholderStaffId,
       email: 'staff.placeholder@example.test',
       passwordHash: null,
-      role: 'staff',
+      role: 'owner',
   }).onConflictDoNothing()
 
   await db.insert(staffProfiles).values({

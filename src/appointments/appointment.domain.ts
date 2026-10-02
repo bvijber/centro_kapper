@@ -5,7 +5,7 @@ export type AppointmentStatus = BlockingAppointment['status']
 const transitions: Record<AppointmentStatus, readonly AppointmentStatus[]> = {
   new: ['confirmed', 'cancelled', 'no_show'],
   confirmed: ['in_progress', 'cancelled', 'no_show'],
-  in_progress: ['completed'],
+  in_progress: ['completed', 'cancelled'],
   completed: [],
   cancelled: [],
   no_show: [],

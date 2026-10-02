@@ -14,6 +14,13 @@ describe('appointment schemas', () => {
     expect(appointmentCreateSchema.safeParse({ serviceId, startsAt: '2026-09-06T09:37:00+02:00', overrideBreak: true }).success).toBe(true)
   })
 
+  it('accepts only 15-minute local booking times', () => {
+    expect(appointmentCreateSchema.safeParse({ serviceId, localDate: '2026-09-06', localTime: '10:07' }).success).toBe(false)
+    expect(appointmentCreateSchema.safeParse({ serviceId, localDate: '2026-09-06', localTime: '10:15' }).success).toBe(true)
+    expect(appointmentModifySchema.safeParse({ id: serviceId, localDate: '2026-09-06', localTime: '10:07' }).success).toBe(false)
+    expect(appointmentModifySchema.safeParse({ id: serviceId, localDate: '2026-09-06', localTime: '10:15' }).success).toBe(true)
+  })
+
   it('rejects incomplete identities, invalid duration inputs and conflicting identities', () => {
     expect(appointmentCreateSchema.safeParse({ serviceId, guestName: 'Guest', startsAt: '2026-09-06T09:37:00+02:00' }).success).toBe(false)
     expect(appointmentCreateSchema.safeParse({ serviceId, guestPhone: '0612345678', startsAt: '2026-09-06T09:37:00+02:00' }).success).toBe(false)

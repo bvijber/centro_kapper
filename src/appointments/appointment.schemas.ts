@@ -6,7 +6,7 @@ export const appointmentCreateSchema = z.object({
   serviceId: z.string().uuid(),
   startsAt: z.coerce.date().optional(),
   localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  localTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  localTime: z.string().regex(/^([01]\d|2[0-3]):(00|15|30|45)$/).optional(),
   customerUserId: z.string().uuid().optional(),
   guestName: optionalText,
   guestPhone: optionalText,
@@ -15,6 +15,7 @@ export const appointmentCreateSchema = z.object({
   overrideOpeningHours: z.boolean().default(false),
   overrideBreak: z.boolean().default(false),
   overrideWholeDayBlock: z.boolean().default(false),
+  confirmOverlap: z.boolean().optional(),
 }).superRefine((value, context) => {
   if (!value.startsAt && (!value.localDate || !value.localTime)) {
     context.addIssue({ code: 'custom', message: 'Een lokale datum en tijd zijn verplicht.', path: ['localDate'] })
@@ -64,7 +65,7 @@ export const appointmentModifySchema = z.object({
   id: z.string().uuid(),
   serviceId: z.string().uuid().optional(),
   localDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
-  localTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/).optional(),
+  localTime: z.string().regex(/^([01]\d|2[0-3]):(00|15|30|45)$/).optional(),
   customerUserId: z.string().uuid().optional(),
   overrideOpeningHours: z.boolean().default(false),
   overrideBreak: z.boolean().default(false),

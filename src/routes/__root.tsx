@@ -11,8 +11,8 @@ function RootComponent() {
   return <RootDocument><AuthProvider><Outlet /></AuthProvider></RootDocument>
 }
 
-function RootError({ error }: { error: Error }) {
-  return <main className="page shell"><p className="eyebrow">CENTRO KAPPER</p><h1>Er ging iets mis.</h1><p className="lead">{error.message}</p></main>
+ function RootError({ error: _error }: { error: Error }) {
+  return <main className="page shell"><p className="eyebrow">CENTRO KAPPER</p><h1>Er ging iets mis.</h1><p className="lead">Probeer het opnieuw. Als het probleem blijft bestaan, neem dan contact op met de eigenaar.</p></main>
 }
 
 function RootNotFound() {

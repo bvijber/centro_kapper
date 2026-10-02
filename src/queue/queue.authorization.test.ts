@@ -21,6 +21,6 @@ describe('queue authorization', () => {
   it('keeps guest UUID capability separate from customer ownership', () => {
     expect(() => requireQueueEntryAccess(null, { customerUserId: customer.id })).toThrow(AuthError)
     expect(() => requireQueueEntryAccess({ kind: 'customer', userId: customer.id }, { customerUserId: '44444444-4444-4444-8444-444444444444' })).toThrow(AuthError)
-    expect(() => requireQueueEntryAccess(null, { customerUserId: null })).not.toThrow()
+    expect(() => requireQueueEntryAccess({ kind: 'guest', capability: 'a'.repeat(32) }, { customerUserId: null, guestAccessTokenHash: 'hash' })).not.toThrow()
   })
 })

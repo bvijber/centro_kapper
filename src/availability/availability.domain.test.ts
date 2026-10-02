@@ -22,6 +22,12 @@ describe('availability domain', () => {
     expect(isSlotAvailable(base(), parseAmsterdamLocal('2026-09-14', '17:00') as Date)).toBe(false)
   })
 
+  it('returns only 15-minute booking intervals', () => {
+    const slots = calculateAvailableSlots(base({ serviceDurationMinutes: 30, bufferMinutes: 0 }))
+    expect(slots.length).toBeGreaterThan(0)
+    expect(slots.every((slot) => [0, 15, 30, 45].includes(Number(slot.time.slice(3))))).toBe(true)
+  })
+
   it('returns no slots for closed days and whole-day blocks', () => {
     expect(calculateAvailableSlots(base({ openingHours: [{ weekday: 1, isOpen: false, openingTime: null, closingTime: null }] }))).toEqual([])
     expect(calculateAvailableSlots(base({ wholeDayBlocked: true }))).toEqual([])

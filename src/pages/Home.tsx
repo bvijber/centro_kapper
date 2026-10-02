@@ -9,10 +9,7 @@ import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { CustomerHeader } from '../components/CustomerHeader'
 import logo from '../assets/logo_centro_kapper.jpeg'
-
-function errorMessage(caught: unknown): string {
-  return String(caught).replace(/^Error:\s*/, '')
-}
+import { publicErrorMessage } from '../components/publicError'
 
 export function Home() {
   const [data, setData] = useState<HomeDTO | null>(null)
@@ -22,7 +19,7 @@ export function Home() {
   useEffect(() => {
     void getHomeDataFn()
       .then(setData)
-      .catch((caught) => setError(errorMessage(caught)))
+      .catch((caught) => setError(publicErrorMessage(caught, 'Saloninformatie kon niet worden geladen.')))
       .finally(() => setLoading(false))
   }, [])
 

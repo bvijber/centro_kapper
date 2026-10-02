@@ -7,13 +7,13 @@ describe.skipIf(!databaseAvailable)('appointment concurrency integration', () =>
   it('serializes conflicting creates through the PostgreSQL transaction advisory lock', async () => {
     const { db } = await import('../db/client.server')
     const { and, eq, inArray } = await import('drizzle-orm')
-    const { appointments, auditLogs, bookingSettings, services, staffProfiles, users } = await import('../db/schema')
+     const { appointments, auditLogs, bookingSettings, businessProfile, openingHours, services, staffProfiles, users } = await import('../db/schema')
     const { createAppointment } = await import('./appointment.service.server')
 
     const barberId = randomUUID()
     const serviceId = randomUUID()
     const email = `phase3-${barberId}@example.com`
-    const startsAt = new Date('2099-01-01T09:37:00.000Z')
+    const startsAt = new Date('2099-01-01T09:45:00.000Z')
 
     const [existingBarber] = await db.select({ id: users.id }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id)).where(and(eq(users.role, 'staff'), eq(staffProfiles.active, true))).limit(1)
     const fixtureBarberId = existingBarber?.id ?? barberId
@@ -23,9 +23,22 @@ describe.skipIf(!databaseAvailable)('appointment concurrency integration', () =>
     }
     await db.insert(services).values({ id: serviceId, name: 'Phase 3 Test Service', description: 'Concurrency fixture', durationMinutes: 30, priceCents: 1000, active: true })
     await db.insert(bookingSettings).values({ id: 1 }).onConflictDoNothing()
+    await db.insert(businessProfile).values({ id: 1, name: 'Test salon', address: 'Test address', phone: '0612345678', timezone: 'Europe/Amsterdam' }).onConflictDoNothing()
+    await db.insert(openingHours).values({ weekday: 4, isOpen: true, openingTime: '09:00', closingTime: '18:00' }).onConflictDoUpdate({ target: openingHours.weekday, set: { isOpen: true, openingTime: '09:00', closingTime: '18:00' } })
 
     let results: PromiseSettledResult<{ id: string }>[] = []
     try {
+      const invalidInput = {
+        serviceId,
+        startsAt: new Date('2099-01-01T09:37:00.000Z'),
+        guestName: 'Concurrency Guest',
+        guestPhone: '0612345678',
+        overrideOpeningHours: false,
+        overrideBreak: false,
+        overrideWholeDayBlock: false,
+      }
+      await expect(createAppointment(invalidInput, { kind: 'guest' })).rejects.toMatchObject({ code: 'INVALID' })
+
       const input = {
         serviceId,
         startsAt,
