@@ -30,7 +30,7 @@ De enige lokale asset in `src/assets/` is:
 
 - `logo_centro_kapper.jpeg`.
 
-Het logo wordt gebruikt in customer header, home, login, staff dashboard, staff appointments, staff queue en staff navigation. Het wordt meestal met beschrijvende alt-tekst weergegeven.
+Het logo wordt gebruikt in customer header, home, login, owner dashboard, owner appointments, owner queue en owner navigation. Het wordt meestal met beschrijvende alt-tekst weergegeven.
 
 De visuele identiteit bestaat uit:
 
@@ -84,7 +84,7 @@ Bestaande stylingcategorieën zijn onder andere:
 - `.button`, `.secondary-action` en `.logout-button`;
 - `.field`, `.search` en appointment form controls;
 - `.service-card`, `.booking-card` en `.appointment-card`;
-- `.bottom-nav` en `.staff-nav`;
+- `.bottom-nav` (customer) en `.staff-nav` (owner, legacy klassenaam);
 - queue, modal, success, error en loading classes.
 
 **UI RULE**
@@ -111,7 +111,7 @@ De typografische hiërarchie gebruikt:
 - kleine uppercase eyebrows met letter spacing voor sectiecontext;
 - goudkleurige prijs- en accentinformatie in servicepresentatie.
 
-Voorbeelden van bestaande headingpatronen zijn grote hero headings op home, login en account creation, `h2`-sectietitels, staff headings en modal headings.
+Voorbeelden van bestaande headingpatronen zijn grote hero headings op home, login en account creation, `h2`-sectietitels, owner headings en modal headings.
 
 **UI RULE**
 
@@ -142,9 +142,9 @@ Bestaande layoutprincipes:
 - grid voor home-actions, services, metrics en appointmentlijsten;
 - horizontale strips voor dates;
 - bottom navigation buiten de primaire content flow;
-- forms als verticale stacks met een beperkte twee-koloms `.form-row` in het staff appointment-modal.
+- forms als verticale stacks met een beperkte twee-koloms `.form-row` in het owner appointment-modal.
 
-De staff dashboardpagina gebruikt een revenue-card, een vierdelige metrics-grid en een staff-link card. De customer home gebruikt business hero, acties, services, openingstijden en contactacties.
+De owner dashboardpagina gebruikt een revenue-card, een driedelige metrics-grid en een owner-link card. De customer home gebruikt business hero, acties, services, openingstijden en contactacties.
 
 **UI RULE**
 
@@ -172,9 +172,9 @@ Bij `max-width: 360px`:
 - worden brand en business hero verkleind;
 - wordt booking metadata compacter.
 
-De page content blijft op grotere schermen binnen de bestaande 520px wrapper. De staff- en customer navigation zijn bottom-navigation patronen; er is geen desktop sidebar in de huidige code.
+De page content blijft op grotere schermen binnen de bestaande 520px wrapper. De owner- en customer navigation zijn bottom-navigation patronen; er is geen desktop sidebar in de huidige code.
 
-Cards en forms blijven op small screens binnen de page width. Het staff appointment-modal gebruikt maximaal 520px breedte en scrollt verticaal binnen maximaal 92vh.
+Cards en forms blijven op small screens binnen de page width. Het owner appointment-modal gebruikt maximaal 520px breedte en scrollt verticaal binnen maximaal 92vh.
 
 **UI RULE**
 
@@ -247,38 +247,42 @@ De huidige service-, datum- en tijdkeuzes zijn lokaal/mock. De UI toont dus het 
 
 ---
 
-## 8. Staff/barber UI
+## 8. Owner/barber UI
 
 ### 8.1 Routes en navigation
 
-Staff routes zijn `/staff`, `/staff/appointments`, `/staff/queue` en `/staff/profile`. `StaffBottomNav` toont:
+Owner routes zijn `/owner`, `/owner/appointments`, `/owner/queue`, `/owner/profile` en `/owner/settings`. `OwnerBottomNav` toont vier items:
 
 - Dashboard met `LayoutDashboard`;
 - Afspraken met `CalendarDays`;
 - Wachtrij met `Clock3`;
-- Profiel met `CircleUserRound`.
+- Profiel met `CircleUserRound` (label `Profiel`, doel `/owner/profile`; `/owner/settings` valt onder dezelfde actieve markering).
 
-De actieve route krijgt class `active`. Staff pages gebruiken dezelfde merkstijl en page wrapper als customer pages, maar met staff heading, management-context en staff navigation.
+De actieve route krijgt class `active`. Owner pages gebruiken dezelfde merkstijl en page wrapper als customer pages, maar met owner heading, management-context en owner navigation (`OwnerBottomNav`; de CSS-klasnaam `.staff-nav` is legacy en blijft ongewijzigd).
 
 ### 8.2 Dashboard
 
-`StaffDashboard.tsx` bevat:
+`OwnerDashboard.tsx` bevat:
 
-- merkheader en `TEAM` label;
+- merkheader en `EIGENAAR` label;
 - beheer-eyebrow;
-- staff greeting;
+- owner greeting;
 - revenue card;
-- vier metrics cards;
+- drie metrics cards (Vandaag, Voltooid, Verzoeken);
 - link-card naar wachtrijbeheer;
-- staff bottom navigation.
+- owner bottom navigation.
 
-De huidige omzet, metrics en teamwaarde zijn hardcoded demo-data.
+Omzet en metrics worden server-side afgeleid via `getOwnerDashboardFn()`; er is geen team-/staff-KPI omdat de owner-only beslissing geen tweede beheerder kent.
+
+### 8.3 Profiel als hubpagina
+
+`OwnerProfile.tsx` is uitsluitend een compacte profielhub: eigenaaraccountkaart (`UserRound`), inline profielbewerking (naam, telefoon via `getMyOwnerProfileFn()` / `updateMyOwnerProfileFn()`), navigatie-cards onder `Beheer` naar `/owner`, `/owner/appointments`, `/owner/queue` en `/owner/settings`, plus logout. Saloninformatie, boekingsinstellingen, openingstijden, pauzes en blokkades, en diensten (`OwnerSettingsSections`) staan niet op de profielpagina maar uitsluitend op `/owner/settings`.
 
 ### 8.3 Appointments
 
-`StaffAppointments.tsx` bevat:
+`OwnerAppointments.tsx` bevat:
 
-- staff header met logo en bell;
+- owner header met logo en bell;
 - beheer-eyebrow;
 - heading en calendar icon;
 - primary `Nieuwe afspraak` action;
@@ -287,15 +291,15 @@ De huidige omzet, metrics en teamwaarde zijn hardcoded demo-data.
 - horizontale date strip;
 - appointment cards;
 - create/edit bottom-sheet modal;
-- staff bottom navigation.
+- owner bottom navigation.
 
 Appointment cards tonen tijd, status, klantinitialen, klant, service, duur, telefoonnummer, optionele notitie en actions. De huidige actions zijn Details, Bewerk, Annuleer, Bevestig, Afgerond en No-show, afhankelijk van lokale status.
 
 ### 8.4 Queue
 
-`StaffQueue.tsx` bevat:
+`OwnerQueue.tsx` bevat:
 
-- staff header;
+- owner header;
 - management heading;
 - success message;
 - queue stats card;
@@ -303,17 +307,29 @@ Appointment cards tonen tijd, status, klantinitialen, klant, service, duur, tele
 - queue rows met klant, service, telefoon, tijd en status;
 - status actions;
 - locatie-informatie;
-- staff bottom navigation.
+- owner bottom navigation.
 
-De waarden en transitions komen momenteel uit lokale `WaitingListContext`.
+De waarden en transitions komen server-side uit `listOwnerQueueFn()` en de queue Server Functions; walk-ins worden via `joinQueueFn()` toegevoegd.
 
-### 8.5 Profile
+### 8.5 Profiel
 
-`StaffProfile.tsx` toont staffnaam, `Barber & eigenaar` en logout. Profile editing en settings UI bestaan nog niet.
+`OwnerProfile.tsx` toont het eigenaarprofiel (naam, telefoon, e-mail), profile editing via `getMyOwnerProfileFn()` / `updateMyOwnerProfileFn()`, navigatie-cards naar de vier beheerpagina's en logout. De pagina rendert `OwnerSettingsSections` niet.
+
+### 8.6 Instellingen
+
+`OwnerSettings.tsx` toont de instellingenpagina: merkheader met `EIGENAAR`, eyebrow `Instellingen`, titel, lead, `OwnerSettingsSections`, logout en `OwnerBottomNav`.
+
+`OwnerSettingsSections.tsx` is de orchestrator: één centrale `load()`, gedeelde save-state en per sectie feedback via het bestaande success/error pattern. De pagina werkt volgens overzicht → onderdeel → terug. Het overzicht toont cards voor `Saloninformatie`, `Boekingsinstellingen`, `Openingstijden`, `Pauzes en blokkades` en `Diensten`; een sectie opent met een `Terug`-knop (`ArrowLeft`) en rendert alleen die sectie. De sectiecomponenten staan in `src/pages/settings/`:
+
+- `SalonInformationSection`: naam, adres en telefoon;
+- `BookingSettingsSection`: buffer en annuleringstermijn in minuten, overlap en no-show vrijgave als radiokeuzes; er is geen control voor `confirmationBehavior`;
+- `OpeningHoursSection`: één rij per dag met open-checkbox en openingstijd/sluitingstijd, met `htmlFor` en visueel verborgen labels voor de tijdvelden;
+- `BreaksAndBlocksSection` met `BreakEditor` en `BlockEditor`: pauzes en volledige dagblokkades via modals, met uitsluitend velden die de bestaande schemas ondersteunen;
+- `ServicesSection` met `ServiceListItem` en `ServiceEditor`: dienstenlijst met status, activeren/deactiveren en een modal voor create en bewerken. Gearchiveerde diensten worden niet getoond en archiveren heeft geen UI-actie.
 
 **UI RULE**
 
-Staff UI mag meer operationele acties tonen dan customer UI, maar gebruikt dezelfde kleuren, fonts, cardtaal, spacing en mobile-first structuur. Staff/customer-separatie in de UI vervangt geen server-side authorization.
+Owner UI mag meer operationele acties tonen dan customer UI, maar gebruikt dezelfde kleuren, fonts, cardtaal, spacing en mobile-first structuur. Owner/customer-separatie in de UI vervangt geen server-side authorization.
 
 ---
 
@@ -343,7 +359,7 @@ Staff UI mag meer operationele acties tonen dan customer UI, maar gebruikt dezel
 
 ### Navigation
 
-`BottomNav`, `StaffBottomNav` en `CustomerHeader` zijn de bestaande navigation/header building blocks. Gebruik deze patronen waar dezelfde context van toepassing is.
+`BottomNav`, `OwnerBottomNav` en `CustomerHeader` zijn de bestaande navigation/header building blocks. Gebruik deze patronen waar dezelfde context van toepassing is.
 
 ### Route guards
 
@@ -489,13 +505,13 @@ Guest booking mag geen verplicht accountproces krijgen. Als authentication optio
 
 ## 16. Barber configuration UI
 
-De requirements voorzien uiteindelijk UI voor services, prijs, serviceduur, opening hours, blocks, buffer, cancellation settings, salon information en appointment settings. Die UI bestaat momenteel nog niet volledig.
+De requirements voorzien UI voor services, prijs, serviceduur, opening hours, blocks, buffer, cancellation settings, salon information en appointment settings. Die UI bestaat op `/owner/settings` (zie §8.6).
 
 **UI RULE**
 
 Configuratievelden worden data-driven gemaakt en niet als permanente presentatieconstanten in components opgeslagen. Wanneer een business setting een `OPEN BESLISSING` is in `BUSINESS_RULES.md`, toont de UI geen definitieve waarde of verzonnen UX-regel.
 
-De uiteindelijke settings UI behoudt de bestaande staff page, heading, card, form en action patterns.
+De settings UI behoudt de bestaande staff page, heading, card, form en action patterns.
 
 ---
 
@@ -594,7 +610,7 @@ Nieuwe UI gebruikt semantische HTML, labels, keyboard interaction, zichtbare foc
 
 **CURRENT**
 
-De code gebruikt `lucide-react` als icon library. Voorbeelden zijn `House`, `Scissors`, `Clock3`, `CalendarDays`, `CircleUserRound`, `MapPin`, `Phone`, `Navigation`, `Bell`, `Check`, `X`, `Eye`, `Edit3`, `Plus`, `UsersRound`, `UserRound`, `Euro` en `LayoutDashboard`.
+De code gebruikt `lucide-react` als icon library. Voorbeelden zijn `House`, `Scissors`, `Clock3`, `CalendarDays`, `CircleUserRound`, `MapPin`, `Phone`, `Navigation`, `Bell`, `Check`, `X`, `Eye`, `Edit3`, `Plus`, `UsersRound`, `UserRound`, `Euro`, `LayoutDashboard`, `ChevronRight`, `Settings`, `Store`, `CalendarClock`, `Coffee` en `ArrowLeft`.
 
 Iconen staan meestal naast tekst of in een vaste card/headerpositie. Bestaande expliciete sizes variëren per context, bijvoorbeeld 15, 17, 18, 19, 20, 21, 22, 24, 27 en 30 pixels.
 
@@ -620,7 +636,7 @@ Customer- en staff-navigation zijn afzonderlijke bestaande componenten met dezel
 
 **UI RULE**
 
-Navigation blijft functioneel gescheiden tussen customer en barber/staff. Een route die niet zichtbaar is in navigation blijft server-side beschermd wanneer dat nodig is. Navigation is nooit authorization.
+Navigation blijft functioneel gescheiden tussen customer en owner. Een route die niet zichtbaar is in navigation blijft server-side beschermd wanneer dat nodig is. Navigation is nooit authorization.
 
 ---
 
@@ -634,7 +650,7 @@ Navigation blijft functioneel gescheiden tussen customer en barber/staff. Een ro
 
 ### Create account
 
-`CreateAccount.tsx` gebruikt dezelfde auth visual language met naam, email, telefoon, password, submit button, error alert en login-link.
+`CreateAccount.tsx` gebruikt dezelfde auth visual language met naam, email, telefoon, password, submit button, error alert en login-link. Het passwordveld toont een hint met de minimale lengte van 8 tekens en validatiefouten worden als Nederlandse melding getoond, niet als ruwe Zod-fouten.
 
 ### Logout
 
@@ -694,7 +710,7 @@ UI state mag server state ondersteunen, maar niet simuleren als definitieve bron
 - drie services met prijzen en duur;
 - vijf appointments.
 
-Deze data wordt momenteel gebruikt door Home, Booking, Queue, StaffAppointments, AppointmentContext en WaitingListContext.
+Deze data wordt niet langer geïmporteerd door actuele pagina's; Home, Booking, Queue en de owner-pagina's zijn server-driven. `src/data/mockData.ts` blijft alleen als transitional/legacy bestand staan.
 
 **TRANSITIONAL/LEGACY**
 
@@ -769,7 +785,7 @@ Nieuwe UI moet:
 3. bestaande spacing volgen;
 4. bestaande typography volgen;
 5. bestaande interaction patterns volgen;
-6. bestaande customer/staff navigation volgen;
+6. bestaande customer/owner navigation volgen;
 7. bestaande visual hierarchy respecteren;
 8. mobile-first blijven;
 9. dezelfde status-, error-, loading- en success-taal gebruiken;
