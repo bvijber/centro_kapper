@@ -20,7 +20,7 @@ import {
   joinQueue,
   leaveQueue,
   listCustomerQueue,
-  listStaffQueue,
+  listOwnerQueue,
   rejoinQueueEntry,
   skipQueueEntry,
   startQueueService,
@@ -35,13 +35,13 @@ import {
 const QUEUE_RATE_LIMIT = 20
 const QUEUE_RATE_WINDOW_SECONDS = 15 * 60
 
-function rateLimitSubject(actor: { kind: 'guest' | 'customer' | 'staff'; userId?: string }): string {
+function rateLimitSubject(actor: { kind: 'guest' | 'customer' | 'owner'; userId?: string }): string {
   return actor.kind === 'guest'
     ? getClientIP() ?? 'unknown'
     : actor.userId ?? 'unknown'
 }
 
-async function enforceQueueMutationRateLimit(action: string, actor: { kind: 'guest' | 'customer' | 'staff'; userId?: string }): Promise<void> {
+async function enforceQueueMutationRateLimit(action: string, actor: { kind: 'guest' | 'customer' | 'owner'; userId?: string }): Promise<void> {
   const subject = createHash('sha256').update(rateLimitSubject(actor)).digest('hex')
   const key = `queue-${action}:${subject}`
   if (!(await consumeRateLimit(key, QUEUE_RATE_LIMIT, QUEUE_RATE_WINDOW_SECONDS))) {
@@ -72,11 +72,11 @@ export const getQueueEntryPositionFn = createServerFn({ method: 'GET' })
     return getQueueEntryMetadata(data.id, user ? resolveQueueActor(user) : { kind: 'guest', capability: data.capability })
   })
 
-export const listStaffQueueFn = createServerFn({ method: 'GET' })
+export const listOwnerQueueFn = createServerFn({ method: 'GET' })
   .validator(queueDateSchema)
   .handler(async ({ data }) => {
     const user = await requireOwner()
-    return listStaffQueue(data.queueDate, resolveQueueActor(user))
+    return listOwnerQueue(data.queueDate, resolveQueueActor(user))
   })
 
 export const listCustomerQueueFn = createServerFn({ method: 'GET' })
@@ -100,7 +100,7 @@ export const callQueueEntryFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const user = await requireOwner()
     const actor = resolveQueueActor(user)
-    await enforceQueueMutationRateLimit('staff', actor)
+    await enforceQueueMutationRateLimit('owner', actor)
     return callQueueEntry(data.id, actor)
   })
 
@@ -109,7 +109,7 @@ export const startQueueServiceFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const user = await requireOwner()
     const actor = resolveQueueActor(user)
-    await enforceQueueMutationRateLimit('staff', actor)
+    await enforceQueueMutationRateLimit('owner', actor)
     return startQueueService(data.id, actor, data.appointmentId)
   })
 
@@ -118,7 +118,7 @@ export const completeQueueEntryFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const user = await requireOwner()
     const actor = resolveQueueActor(user)
-    await enforceQueueMutationRateLimit('staff', actor)
+    await enforceQueueMutationRateLimit('owner', actor)
     return completeQueueEntry(data.id, actor)
   })
 
@@ -127,7 +127,7 @@ export const cancelQueueEntryFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const user = await requireOwner()
     const actor = resolveQueueActor(user)
-    await enforceQueueMutationRateLimit('staff', actor)
+    await enforceQueueMutationRateLimit('owner', actor)
     return cancelQueueEntry(data.id, actor)
   })
 
@@ -136,7 +136,7 @@ export const skipQueueEntryFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const user = await requireOwner()
     const actor = resolveQueueActor(user)
-    await enforceQueueMutationRateLimit('staff', actor)
+    await enforceQueueMutationRateLimit('owner', actor)
     return skipQueueEntry(data.id, actor)
   })
 
@@ -145,6 +145,6 @@ export const rejoinQueueEntryFn = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     const user = await requireOwner()
     const actor = resolveQueueActor(user)
-    await enforceQueueMutationRateLimit('staff', actor)
+    await enforceQueueMutationRateLimit('owner', actor)
     return rejoinQueueEntry(data.id, actor)
   })

@@ -3,9 +3,9 @@ import { and, eq } from 'drizzle-orm'
 import { recordAuditEvent } from '../auth/audit.server'
 import { db } from '../db/client.server'
 import type { Database } from '../db/client.server'
-import { customerProfiles, staffProfiles } from '../db/schema/profiles'
+import { customerProfiles, ownerProfiles } from '../db/schema/profiles'
 import { users } from '../db/schema/users'
-import type { CustomerProfileUpdateInput, StaffProfileUpdateInput } from './profiles.schemas'
+import type { CustomerProfileUpdateInput, OwnerProfileUpdateInput } from './profiles.schemas'
 
 type ProfilesExecutor = Database | Parameters<Parameters<Database['transaction']>[0]>[0]
 
@@ -16,7 +16,7 @@ export type CustomerProfileDTO = {
   phone: string
 }
 
-export type StaffProfileDTO = {
+export type OwnerProfileDTO = {
   userId: string
   email: string
   displayName: string
@@ -69,13 +69,13 @@ export async function updateCustomerProfile(userId: string, input: CustomerProfi
   }
 }
 
-export async function getStaffProfile(userId: string): Promise<StaffProfileDTO> {
+export async function getOwnerProfile(userId: string): Promise<OwnerProfileDTO> {
   try {
     const [row] = await db
-      .select({ userId: users.id, email: users.email, displayName: staffProfiles.displayName, phone: staffProfiles.phone })
-      .from(staffProfiles)
-      .innerJoin(users, eq(users.id, staffProfiles.userId))
-      .where(and(eq(staffProfiles.userId, userId), eq(staffProfiles.active, true)))
+      .select({ userId: users.id, email: users.email, displayName: ownerProfiles.displayName, phone: ownerProfiles.phone })
+      .from(ownerProfiles)
+      .innerJoin(users, eq(users.id, ownerProfiles.userId))
+      .where(and(eq(ownerProfiles.userId, userId), eq(ownerProfiles.active, true)))
       .limit(1)
     if (!row) throw new ProfilesError('Profiel niet gevonden.', 'NOT_FOUND')
     return row
@@ -85,15 +85,15 @@ export async function getStaffProfile(userId: string): Promise<StaffProfileDTO> 
   }
 }
 
-export async function updateStaffProfile(userId: string, input: StaffProfileUpdateInput): Promise<StaffProfileDTO> {
+export async function updateOwnerProfile(userId: string, input: OwnerProfileUpdateInput): Promise<OwnerProfileDTO> {
   try {
     return await db.transaction(async (tx) => {
-      const [before] = await tx.select().from(staffProfiles).where(and(eq(staffProfiles.userId, userId), eq(staffProfiles.active, true))).limit(1)
+      const [before] = await tx.select().from(ownerProfiles).where(and(eq(ownerProfiles.userId, userId), eq(ownerProfiles.active, true))).limit(1)
       if (!before) throw new ProfilesError('Profiel niet gevonden.', 'NOT_FOUND')
-      const [updated] = await tx.update(staffProfiles).set({ displayName: input.displayName, phone: input.phone, updatedAt: new Date() }).where(eq(staffProfiles.userId, userId)).returning()
+      const [updated] = await tx.update(ownerProfiles).set({ displayName: input.displayName, phone: input.phone, updatedAt: new Date() }).where(eq(ownerProfiles.userId, userId)).returning()
       if (!updated) throw new ProfilesError('Profiel kon niet worden bijgewerkt.', 'FAILED')
       await recordAuditEvent({
-        action: 'profile.staff.update',
+        action: 'profile.owner.update',
         actorUserId: userId,
         entityType: 'profile',
         entityId: userId,

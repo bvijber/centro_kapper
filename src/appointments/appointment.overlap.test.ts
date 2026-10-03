@@ -22,9 +22,9 @@ describe('appointment overlap', () => {
     expect(blocksCapacity({ status: 'no_show', slotReleasedAt: new Date() })).toBe(false)
   })
 
-  it('centralizes the per-barber advisory lock key', () => {
-    expect(getAppointmentLockKey('staff-1')).toBe('appointment:staff-1')
-    expect(getAppointmentLockKey('staff-1')).toBe(getAppointmentLockKey('staff-1'))
-    expect(getAppointmentLockKey('staff-1')).not.toBe(getAppointmentLockKey('staff-2'))
+  it('centralizes the per-owner advisory lock key', () => {
+    expect(getAppointmentLockKey('owner-1')).toBe('appointment:owner-1')
+    expect(getAppointmentLockKey('owner-1')).toBe(getAppointmentLockKey('owner-1'))
+    expect(getAppointmentLockKey('owner-1')).not.toBe(getAppointmentLockKey('owner-2'))
   })
 })

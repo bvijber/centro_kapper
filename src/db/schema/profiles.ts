@@ -13,7 +13,7 @@ export const customerProfiles = pgTable('customer_profiles', {
   updatedAt: timestamp('updated_at', { withTimezone: true }).defaultNow().notNull(),
 })
 
-export const staffProfiles = pgTable('owner_profiles', {
+export const ownerProfiles = pgTable('owner_profiles', {
   userId: uuid('user_id')
     .primaryKey()
     .references(() => users.id, { onDelete: 'cascade' }),
@@ -28,6 +28,6 @@ export const customerProfilesRelations = relations(customerProfiles, ({ one }) =
   user: one(users, { fields: [customerProfiles.userId], references: [users.id] }),
 }))
 
-export const staffProfilesRelations = relations(staffProfiles, ({ one }) => ({
-  user: one(users, { fields: [staffProfiles.userId], references: [users.id] }),
+export const ownerProfilesRelations = relations(ownerProfiles, ({ one }) => ({
+  user: one(users, { fields: [ownerProfiles.userId], references: [users.id] }),
 }))

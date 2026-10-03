@@ -116,6 +116,8 @@ De applicatie beschikt over veilige authenticatie.
 De authenticatie gebruikt:
 
 - Argon2id voor wachtwoordhashing;
+- een minimale wachtwoordlengte van 8 tekens bij registratie;
+- Nederlandse validatiemeldingen bij registratie in plaats van ruwe Zod-fouten;
 - database-backed sessions;
 - HTTP-only session cookies;
 - session expiry;

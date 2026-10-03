@@ -27,16 +27,15 @@ describe.skipIf(!databaseAvailable)('queue foundation integration', () => {
     const { and, eq, inArray } = await import('drizzle-orm')
     const { appointments, auditLogs, services, users, waitingListEntries } = await import('../db/schema')
     const { joinQueue, callQueueEntry, startQueueService, completeQueueEntry } = await import('./queue.service.server')
+    const { ensureActiveOwnerFixture, removeOwnerFixture } = await import('../../tests/helpers/owner-fixture')
 
     const serviceId = randomUUID()
     const appointmentId = randomUUID()
-    const staffId = randomUUID()
-    const staffEmail = `queue-staff-${randomUUID()}@example.com`
     const startsAt = new Date('2099-01-01T09:00:00.000Z')
     const createdIds: string[] = []
+    const ownerFixture = await ensureActiveOwnerFixture('queue-foundation')
 
     await db.insert(services).values({ id: serviceId, name: 'Queue Foundation Service', description: 'Queue integration fixture', durationMinutes: 30, priceCents: 1000, active: true })
-    await db.insert(users).values({ id: staffId, email: staffEmail, role: 'staff' })
     await db.insert(appointments).values({
       id: appointmentId,
       guestName: 'Queue Guest',
@@ -56,10 +55,10 @@ describe.skipIf(!databaseAvailable)('queue foundation integration', () => {
       createdIds.push(entry.id)
       expect(entry.status).toBe('waiting')
 
-      const staffActor = { kind: 'staff' as const, userId: staffId }
-      expect((await callQueueEntry(entry.id, staffActor)).status).toBe('called')
-      expect((await startQueueService(entry.id, staffActor, appointmentId)).appointmentId).toBe(appointmentId)
-      expect((await completeQueueEntry(entry.id, staffActor)).status).toBe('completed')
+      const ownerActor = { kind: 'owner' as const, userId: ownerFixture.userId }
+      expect((await callQueueEntry(entry.id, ownerActor)).status).toBe('called')
+      expect((await startQueueService(entry.id, ownerActor, appointmentId)).appointmentId).toBe(appointmentId)
+      expect((await completeQueueEntry(entry.id, ownerActor)).status).toBe('completed')
 
       const stored = await db.select({ status: waitingListEntries.status, appointmentId: waitingListEntries.appointmentId }).from(waitingListEntries).where(eq(waitingListEntries.id, entry.id))
       expect(stored[0]).toEqual({ status: 'completed', appointmentId })
@@ -68,7 +67,7 @@ describe.skipIf(!databaseAvailable)('queue foundation integration', () => {
       await db.delete(waitingListEntries).where(inArray(waitingListEntries.id, createdIds))
       await db.delete(appointments).where(eq(appointments.id, appointmentId))
       await db.delete(services).where(eq(services.id, serviceId))
-      await db.delete(users).where(eq(users.id, staffId))
+      await removeOwnerFixture(ownerFixture)
     }
   })
 

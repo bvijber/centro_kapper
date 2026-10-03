@@ -7,20 +7,14 @@ describe.skipIf(!databaseAvailable)('appointment concurrency integration', () =>
   it('serializes conflicting creates through the PostgreSQL transaction advisory lock', async () => {
     const { db } = await import('../db/client.server')
     const { and, eq, inArray } = await import('drizzle-orm')
-     const { appointments, auditLogs, bookingSettings, businessProfile, openingHours, services, staffProfiles, users } = await import('../db/schema')
+     const { appointments, auditLogs, bookingSettings, businessProfile, openingHours, services, ownerProfiles, users } = await import('../db/schema')
     const { createAppointment } = await import('./appointment.service.server')
 
-    const barberId = randomUUID()
+    const { ensureActiveOwnerFixture, removeOwnerFixture } = await import('../../tests/helpers/owner-fixture')
     const serviceId = randomUUID()
-    const email = `phase3-${barberId}@example.com`
     const startsAt = new Date('2099-01-01T09:45:00.000Z')
 
-    const [existingBarber] = await db.select({ id: users.id }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id)).where(and(eq(users.role, 'staff'), eq(staffProfiles.active, true))).limit(1)
-    const fixtureBarberId = existingBarber?.id ?? barberId
-    if (!existingBarber) {
-      await db.insert(users).values({ id: barberId, email, role: 'staff' })
-      await db.insert(staffProfiles).values({ userId: barberId, displayName: 'Phase 3 Test Barber', phone: '0612345678', active: true })
-    }
+    const ownerFixture = await ensureActiveOwnerFixture('concurrency')
     await db.insert(services).values({ id: serviceId, name: 'Phase 3 Test Service', description: 'Concurrency fixture', durationMinutes: 30, priceCents: 1000, active: true })
     await db.insert(bookingSettings).values({ id: 1 }).onConflictDoNothing()
     await db.insert(businessProfile).values({ id: 1, name: 'Test salon', address: 'Test address', phone: '0612345678', timezone: 'Europe/Amsterdam' }).onConflictDoNothing()
@@ -66,10 +60,7 @@ describe.skipIf(!databaseAvailable)('appointment concurrency integration', () =>
       }
       await db.delete(appointments).where(eq(appointments.serviceId, serviceId))
       await db.delete(services).where(eq(services.id, serviceId))
-      if (!existingBarber) {
-        await db.delete(staffProfiles).where(eq(staffProfiles.userId, fixtureBarberId))
-        await db.delete(users).where(eq(users.id, fixtureBarberId))
-      }
+      await removeOwnerFixture(ownerFixture)
     }
   })
 })

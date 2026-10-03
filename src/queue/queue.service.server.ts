@@ -12,7 +12,7 @@ import {
   authorizeQueueJoin,
   requireQueueEntryAccess,
   requireQueueMutationOwnership,
-  requireStaffQueueActor,
+  requireOwnerQueueActor,
   type QueueActor,
   type QueueMutationActor,
 } from './queue.authorization'
@@ -123,8 +123,8 @@ async function resolveService(executor: QueueTransaction, serviceId: string) {
   return service
 }
 
-function requireStaff(actor: QueueMutationActor): asserts actor is { kind: 'staff'; userId: string } {
-  requireStaffQueueActor(actor)
+function requireOwner(actor: QueueMutationActor): asserts actor is { kind: 'owner'; userId: string } {
+  requireOwnerQueueActor(actor)
 }
 
 export async function joinQueue(input: QueueJoinInput, actor: QueueActor, now = new Date()): Promise<QueueEntryDTO> {
@@ -136,7 +136,7 @@ export async function joinQueue(input: QueueJoinInput, actor: QueueActor, now = 
 
       const customerUserId = actor.kind === 'customer'
         ? actor.userId
-        : actor.kind === 'staff'
+        : actor.kind === 'owner'
           ? input.customerUserId ?? null
           : null
       if (customerUserId) {
@@ -213,8 +213,8 @@ export async function getQueueEntryMetadata(id: string, actor: QueueActor | null
   }
 }
 
-export async function listStaffQueue(queueDate: string, actor: QueueMutationActor): Promise<QueueEntryDTO[]> {
-  requireStaff(actor)
+export async function listOwnerQueue(queueDate: string, actor: QueueMutationActor): Promise<QueueEntryDTO[]> {
+  requireOwner(actor)
   return (await listQueueEntries(db, queueDate)).map(mapQueueEntry)
 }
 
@@ -240,10 +240,10 @@ async function transitionQueueEntry(
       if (!canTransitionQueueStatus(current.status, targetStatus)) {
         throw new QueueError('Deze queue-statusovergang is niet toegestaan.', 'INVALID')
       }
-      if (targetStatus === 'waiting' && actor.kind !== 'staff') {
-        throw new AuthError('Alleen de barber kan een queue-entry herplaatsen.', 'FORBIDDEN')
+      if (targetStatus === 'waiting' && actor.kind !== 'owner') {
+        throw new AuthError('Alleen de eigenaar kan een queue-entry herplaatsen.', 'FORBIDDEN')
       }
-       if (actor.kind !== 'staff') {
+       if (actor.kind !== 'owner') {
          requireQueueMutationOwnership(actor, current)
          if (actor.kind === 'guest' && createHash('sha256').update(actor.capability ?? '').digest('hex') !== current.guestAccessTokenHash) throw new AuthError('Geen toegang.', 'FORBIDDEN')
        }
@@ -278,32 +278,32 @@ export function leaveQueue(id: string, actor: QueueActor): Promise<QueueEntryDTO
 }
 
 export function callQueueEntry(id: string, actor: QueueMutationActor): Promise<QueueEntryDTO> {
-  requireStaff(actor)
+  requireOwner(actor)
   return transitionQueueEntry(id, 'called', actor)
 }
 
 export function startQueueService(id: string, actor: QueueMutationActor, appointmentId?: string): Promise<QueueEntryDTO> {
-  requireStaff(actor)
+  requireOwner(actor)
   return transitionQueueEntry(id, 'in_service', actor, { appointmentId })
 }
 
 export function completeQueueEntry(id: string, actor: QueueMutationActor): Promise<QueueEntryDTO> {
-  requireStaff(actor)
+  requireOwner(actor)
   return transitionQueueEntry(id, 'completed', actor)
 }
 
 export function cancelQueueEntry(id: string, actor: QueueMutationActor): Promise<QueueEntryDTO> {
-  requireStaff(actor)
+  requireOwner(actor)
   return transitionQueueEntry(id, 'cancelled', actor)
 }
 
 export function skipQueueEntry(id: string, actor: QueueMutationActor): Promise<QueueEntryDTO> {
-  requireStaff(actor)
+  requireOwner(actor)
   return transitionQueueEntry(id, 'skipped', actor)
 }
 
 export function rejoinQueueEntry(id: string, actor: QueueMutationActor, now = new Date()): Promise<QueueEntryDTO> {
-  requireStaff(actor)
+  requireOwner(actor)
   return db.transaction(async (tx) => {
     const initial = await findQueueEntryById(tx, id)
     if (!initial) throw new QueueError('Queue-entry niet gevonden.', 'NOT_FOUND')

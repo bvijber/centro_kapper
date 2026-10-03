@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 
 const state = vi.hoisted(() => ({
-  user: null as { id: string; email: string; role: 'customer' | 'owner' | 'staff'; name: string | null; phone: string | null } | null,
+  user: null as { id: string; email: string; role: 'customer' | 'owner'; name: string | null; phone: string | null } | null,
   rateAllowed: true,
 }))
 
@@ -11,7 +11,7 @@ const serviceMocks = vi.hoisted(() => ({
   joinQueue: vi.fn(),
   getQueueEntry: vi.fn(),
   getQueueEntryMetadata: vi.fn(),
-  listStaffQueue: vi.fn(),
+  listOwnerQueue: vi.fn(),
   listCustomerQueue: vi.fn(),
   leaveQueue: vi.fn(),
   callQueueEntry: vi.fn(),
@@ -47,12 +47,8 @@ vi.mock('../auth/authorization', async () => {
       if (state.user?.role !== 'customer') throw new AuthError('Geen toegang.', 'FORBIDDEN')
       return state.user
     }),
-    requireStaff: vi.fn(async () => {
-      if (state.user?.role !== 'staff') throw new AuthError('Geen toegang.', 'FORBIDDEN')
-      return state.user
-    }),
     requireOwner: vi.fn(async () => {
-      if (state.user?.role !== 'staff' && state.user?.role !== 'owner') throw new AuthError('Geen toegang.', 'FORBIDDEN')
+      if (state.user?.role !== 'owner') throw new AuthError('Geen toegang.', 'FORBIDDEN')
       return state.user
     }),
   }
@@ -71,14 +67,14 @@ import {
   joinQueueFn,
   leaveQueueFn,
   listCustomerQueueFn,
-  listStaffQueueFn,
+  listOwnerQueueFn,
   rejoinQueueEntryFn,
   skipQueueEntryFn,
   startQueueServiceFn,
 } from './queue.functions'
 
 const customer = { id: randomUUID(), email: 'customer@example.test', role: 'customer' as const, name: 'Customer', phone: '0612345678' }
-const staff = { id: randomUUID(), email: 'staff@example.test', role: 'staff' as const, name: 'Staff', phone: '0612345678' }
+const owner = { id: randomUUID(), email: 'owner@example.test', role: 'owner' as const, name: 'Owner', phone: '0612345678' }
 const serviceId = randomUUID()
 const entryId = randomUUID()
 const entry = { id: entryId, customerUserId: customer.id, status: 'waiting' }
@@ -90,7 +86,7 @@ function resetMocks() {
   serviceMocks.joinQueue.mockResolvedValue(entry)
   serviceMocks.getQueueEntry.mockResolvedValue(entry)
   serviceMocks.getQueueEntryMetadata.mockResolvedValue({ position: 2, count: 1, estimatedWaitMinutes: 35 })
-  serviceMocks.listStaffQueue.mockResolvedValue([entry])
+  serviceMocks.listOwnerQueue.mockResolvedValue([entry])
   serviceMocks.listCustomerQueue.mockResolvedValue([entry])
   serviceMocks.leaveQueue.mockResolvedValue({ ...entry, status: 'cancelled' })
   serviceMocks.callQueueEntry.mockResolvedValue({ ...entry, status: 'called' })
@@ -133,6 +129,12 @@ describe('queue Server Function boundary', () => {
     state.user = customer
     await expect(invoke(getQueueEntryFn, { id: entryId })).resolves.toEqual(entry)
     expect(serviceMocks.getQueueEntry).toHaveBeenCalledWith(entryId, { kind: 'customer', userId: customer.id })
+    await expect(invoke(listOwnerQueueFn, { queueDate: '2026-09-10' })).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(invoke(callQueueEntryFn, { id: entryId })).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    await expect(invoke(skipQueueEntryFn, { id: entryId })).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    expect(serviceMocks.listOwnerQueue).not.toHaveBeenCalled()
+    expect(serviceMocks.callQueueEntry).not.toHaveBeenCalled()
+    expect(serviceMocks.skipQueueEntry).not.toHaveBeenCalled()
   })
 
   it('uses the authenticated customer identity for joins and customer lists', async () => {
@@ -146,13 +148,13 @@ describe('queue Server Function boundary', () => {
     expect(serviceMocks.listCustomerQueue).toHaveBeenCalledWith(customer.id, '2026-09-10', { kind: 'customer', userId: customer.id })
   })
 
-  it('supports staff walk-ins, staff reads and all staff lifecycle boundaries', async () => {
+  it('supports owner walk-ins, owner reads and all owner lifecycle boundaries', async () => {
     resetMocks()
-    state.user = staff
+    state.user = owner
     const walkIn = { serviceId, customerUserId: customer.id }
 
     await expect(invoke(joinQueueFn, walkIn)).resolves.toEqual(entry)
-    await expect(invoke(listStaffQueueFn, { queueDate: '2026-09-10' })).resolves.toEqual([entry])
+    await expect(invoke(listOwnerQueueFn, { queueDate: '2026-09-10' })).resolves.toEqual([entry])
     await expect(invoke(getQueueEntryFn, { id: entryId })).resolves.toEqual(entry)
     await expect(invoke(callQueueEntryFn, { id: entryId })).resolves.toMatchObject({ status: 'called' })
     await expect(invoke(startQueueServiceFn, { id: entryId, status: 'in_service', appointmentId: randomUUID() })).resolves.toMatchObject({ status: 'in_service' })
@@ -161,9 +163,9 @@ describe('queue Server Function boundary', () => {
     await expect(invoke(skipQueueEntryFn, { id: entryId })).resolves.toMatchObject({ status: 'skipped' })
     await expect(invoke(rejoinQueueEntryFn, { id: entryId })).resolves.toMatchObject({ status: 'waiting' })
 
-    expect(serviceMocks.joinQueue).toHaveBeenCalledWith(walkIn, { kind: 'staff', userId: staff.id })
-    expect(serviceMocks.listStaffQueue).toHaveBeenCalledWith('2026-09-10', { kind: 'staff', userId: staff.id })
-    expect(serviceMocks.startQueueService).toHaveBeenCalledWith(entryId, { kind: 'staff', userId: staff.id }, expect.any(String))
+    expect(serviceMocks.joinQueue).toHaveBeenCalledWith(walkIn, { kind: 'owner', userId: owner.id })
+    expect(serviceMocks.listOwnerQueue).toHaveBeenCalledWith('2026-09-10', { kind: 'owner', userId: owner.id })
+    expect(serviceMocks.startQueueService).toHaveBeenCalledWith(entryId, { kind: 'owner', userId: owner.id }, expect.any(String))
   })
 
   it('returns position, count and estimated wait metadata for the specific entry', async () => {

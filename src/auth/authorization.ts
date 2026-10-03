@@ -20,11 +20,6 @@ export async function requireOwner(): Promise<SafeUser> {
   return user
 }
 
-/** @deprecated Legacy name retained only while old internal modules are migrated. */
-export async function requireStaff(): Promise<SafeUser> {
-  return requireOwner()
-}
-
 export async function requireOwnership(ownerUserId: string): Promise<SafeUser> {
   const user = await requireAuthenticatedUser()
   if (user.id !== ownerUserId) throw new AuthError('Geen toegang.', 'FORBIDDEN')

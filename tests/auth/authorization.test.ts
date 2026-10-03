@@ -7,10 +7,10 @@ const { getCurrentUser } = vi.hoisted(() => ({
 }))
 vi.mock('../../src/auth/auth.service.server', () => ({ getCurrentUser }))
 
-import { requireAuthenticatedUser, requireCustomer, requireOwnership, requireStaff } from '../../src/auth/authorization'
+import { requireAuthenticatedUser, requireCustomer, requireOwnership, requireOwner } from '../../src/auth/authorization'
 
 const customer: SafeUser = { id: 'customer-1', email: 'customer@example.com', role: 'customer', name: 'Customer', phone: '0612345678' }
-const staff: SafeUser = { id: 'owner-1', email: 'owner@example.com', role: 'owner', name: 'Owner', phone: '0612345678' }
+const owner: SafeUser = { id: 'owner-1', email: 'owner@example.com', role: 'owner', name: 'Owner', phone: '0612345678' }
 
 describe('authorization helpers', () => {
   beforeEach(() => getCurrentUser.mockReset())
@@ -23,14 +23,14 @@ describe('authorization helpers', () => {
   it('allows the matching customer and owner roles', async () => {
     getCurrentUser.mockResolvedValue(customer)
     await expect(requireCustomer()).resolves.toBe(customer)
-    getCurrentUser.mockResolvedValue(staff)
-    await expect(requireStaff()).resolves.toBe(staff)
+    getCurrentUser.mockResolvedValue(owner)
+    await expect(requireOwner()).resolves.toBe(owner)
   })
 
   it('rejects the wrong role', async () => {
     getCurrentUser.mockResolvedValue(customer)
-    await expect(requireStaff()).rejects.toMatchObject({ code: 'FORBIDDEN' })
-    getCurrentUser.mockResolvedValue(staff)
+    await expect(requireOwner()).rejects.toMatchObject({ code: 'FORBIDDEN' })
+    getCurrentUser.mockResolvedValue(owner)
     await expect(requireCustomer()).rejects.toMatchObject({ code: 'FORBIDDEN' })
   })
 

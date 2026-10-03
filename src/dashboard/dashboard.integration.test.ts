@@ -7,19 +7,15 @@ describe.skipIf(!databaseAvailable)('dashboard integration', () => {
   it('computes server-derived metrics from actual appointment data', async () => {
     const { db } = await import('../db/client.server')
     const { eq, inArray } = await import('drizzle-orm')
-    const { appointments, auditLogs, bookingSettings, services, users, staffProfiles } = await import('../db/schema')
-    const { getStaffDashboard } = await import('./dashboard.service.server')
+    const { appointments, auditLogs, bookingSettings, services, users, ownerProfiles } = await import('../db/schema')
+    const { getOwnerDashboard } = await import('./dashboard.service.server')
+    const { ensureActiveOwnerFixture, removeOwnerFixture } = await import('../../tests/helpers/owner-fixture')
     const { formatAmsterdamDateKey, getAmsterdamDayBounds } = await import('../timezone')
 
-    const staffId = randomUUID()
     const serviceId = randomUUID()
 
-    const [existingBarber] = await db.select({ id: users.id }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id)).where(eq(staffProfiles.active, true)).limit(1)
-    const fixtureStaffId = existingBarber?.id ?? staffId
-    if (!existingBarber) {
-      await db.insert(users).values({ id: staffId, email: `dashboard-staff-${randomUUID()}@example.com`, role: 'staff' })
-      await db.insert(staffProfiles).values({ userId: staffId, displayName: 'Dashboard Test Barber', phone: '0612345678', active: true })
-    }
+    const ownerFixture = await ensureActiveOwnerFixture('dashboard')
+    const fixtureOwnerId = ownerFixture.userId
     await db.insert(bookingSettings).values({ id: 1 }).onConflictDoNothing()
     await db.insert(services).values({ id: serviceId, name: 'Dashboard Test Service', description: 'Dashboard fixture', durationMinutes: 30, priceCents: 1000, active: true })
 
@@ -38,7 +34,7 @@ describe.skipIf(!databaseAvailable)('dashboard integration', () => {
           customerUserId: null,
           guestName: `Dashboard Guest ${index}`,
           guestPhone: '0612345678',
-          barberUserId: fixtureStaffId,
+          barberUserId: fixtureOwnerId,
           serviceId,
           serviceNameAtBooking: 'Dashboard Test Service',
           servicePriceCentsAtBooking: 1000,
@@ -52,40 +48,32 @@ describe.skipIf(!databaseAvailable)('dashboard integration', () => {
         todayIds.push(id)
       }
 
-      const metrics = await getStaffDashboard()
+      const metrics = await getOwnerDashboard()
       expect(metrics.appointmentsToday).toBeGreaterThanOrEqual(3)
       expect(metrics.completedToday).toBeGreaterThanOrEqual(3)
       expect(metrics.revenueThisMonthCents).toBeGreaterThanOrEqual(3000)
-      expect(metrics.activeStaff).toBeGreaterThanOrEqual(1)
     } finally {
       if (todayIds.length > 0) {
         await db.delete(auditLogs).where(inArray(auditLogs.entityId, todayIds))
         await db.delete(appointments).where(inArray(appointments.id, todayIds))
       }
       await db.delete(services).where(eq(services.id, serviceId))
-      if (!existingBarber) {
-        await db.delete(staffProfiles).where(eq(staffProfiles.userId, fixtureStaffId))
-        await db.delete(users).where(eq(users.id, fixtureStaffId))
-      }
+      await removeOwnerFixture(ownerFixture)
     }
   })
 
   it('does not count cancelled appointments as completed revenue or today activity', async () => {
     const { db } = await import('../db/client.server')
     const { eq } = await import('drizzle-orm')
-    const { appointments, auditLogs, bookingSettings, services, users, staffProfiles } = await import('../db/schema')
-    const { getStaffDashboard } = await import('./dashboard.service.server')
+    const { appointments, auditLogs, bookingSettings, services, users, ownerProfiles } = await import('../db/schema')
+    const { getOwnerDashboard } = await import('./dashboard.service.server')
+    const { ensureActiveOwnerFixture, removeOwnerFixture } = await import('../../tests/helpers/owner-fixture')
     const { formatAmsterdamDateKey, getAmsterdamDayBounds } = await import('../timezone')
 
-    const staffId = randomUUID()
     const serviceId = randomUUID()
 
-    const [existingBarber] = await db.select({ id: users.id }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id)).where(eq(staffProfiles.active, true)).limit(1)
-    const fixtureStaffId = existingBarber?.id ?? staffId
-    if (!existingBarber) {
-      await db.insert(users).values({ id: staffId, email: `dashboard-cancel-${randomUUID()}@example.com`, role: 'staff' })
-      await db.insert(staffProfiles).values({ userId: staffId, displayName: 'Dashboard Cancel Barber', phone: '0612345678', active: true })
-    }
+    const ownerFixture = await ensureActiveOwnerFixture('dashboard-cancel')
+    const fixtureOwnerId = ownerFixture.userId
     await db.insert(bookingSettings).values({ id: 1 }).onConflictDoNothing()
     await db.insert(services).values({ id: serviceId, name: 'Dashboard Cancel Service', description: 'Dashboard cancel fixture', durationMinutes: 30, priceCents: 1000, active: true })
 
@@ -94,14 +82,14 @@ describe.skipIf(!databaseAvailable)('dashboard integration', () => {
     const cancelledId = randomUUID()
 
     try {
-      const before = await getStaffDashboard()
+      const before = await getOwnerDashboard()
 
       await db.insert(appointments).values({
         id: cancelledId,
         customerUserId: null,
         guestName: 'Cancelled Guest',
         guestPhone: '0612345678',
-        barberUserId: fixtureStaffId,
+        barberUserId: fixtureOwnerId,
         serviceId,
         serviceNameAtBooking: 'Dashboard Cancel Service',
         servicePriceCentsAtBooking: 9999,
@@ -113,17 +101,14 @@ describe.skipIf(!databaseAvailable)('dashboard integration', () => {
         cancelledAt: cancelledStarts,
       })
 
-      const after = await getStaffDashboard()
+      const after = await getOwnerDashboard()
       expect(after.completedToday).toBe(before.completedToday)
       expect(after.revenueThisMonthCents).toBe(before.revenueThisMonthCents)
     } finally {
       await db.delete(auditLogs).where(eq(auditLogs.entityId, cancelledId))
       await db.delete(appointments).where(eq(appointments.id, cancelledId))
       await db.delete(services).where(eq(services.id, serviceId))
-      if (!existingBarber) {
-        await db.delete(staffProfiles).where(eq(staffProfiles.userId, fixtureStaffId))
-        await db.delete(users).where(eq(users.id, fixtureStaffId))
-      }
+      await removeOwnerFixture(ownerFixture)
     }
   })
 })

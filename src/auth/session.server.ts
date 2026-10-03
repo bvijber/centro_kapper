@@ -4,19 +4,19 @@ import { and, eq, gt, isNull } from 'drizzle-orm'
 import { deleteCookie, getCookie, setCookie } from '@tanstack/react-start/server'
 
 import { db } from '../db/client.server'
-import { customerProfiles, staffProfiles } from '../db/schema/profiles'
+import { customerProfiles, ownerProfiles } from '../db/schema/profiles'
 import { sessions, users } from '../db/schema/users'
 import type { SafeUser } from './auth.schemas'
 
 export const SESSION_COOKIE = 'ck_session'
 const CUSTOMER_SESSION_DAYS = 30
-const STAFF_SESSION_DAYS = 7
+const OWNER_SESSION_DAYS = 7
 const MAX_SESSION_DAYS = 90
 
 type SessionUserRow = {
   user: typeof users.$inferSelect
   customerProfile: typeof customerProfiles.$inferSelect | null
-  staffProfile: typeof staffProfiles.$inferSelect | null
+  ownerProfile: typeof ownerProfiles.$inferSelect | null
 }
 
 export function generateSessionToken(): string {
@@ -27,8 +27,8 @@ export function hashSessionToken(token: string): string {
   return createHash('sha256').update(token).digest('hex')
 }
 
-function sessionLifetimeDays(role: 'customer' | 'owner' | 'staff'): number {
-  return role === 'owner' || role === 'staff' ? STAFF_SESSION_DAYS : CUSTOMER_SESSION_DAYS
+function sessionLifetimeDays(role: 'customer' | 'owner'): number {
+  return role === 'owner' ? OWNER_SESSION_DAYS : CUSTOMER_SESSION_DAYS
 }
 
 export function setSessionCookie(token: string, expiresAt: Date): void {
@@ -46,15 +46,15 @@ export function clearSessionCookie(): void {
 }
 
 export function toSafeUser(row: SessionUserRow): SafeUser | null {
-  const profile = row.user.role === 'customer' ? row.customerProfile : row.staffProfile
-  if (!profile) return null
-  return {
-    id: row.user.id,
-    email: row.user.email,
-    role: row.user.role,
-    name: row.user.role === 'customer' ? row.customerProfile!.fullName : row.staffProfile!.displayName,
-    phone: profile.phone,
+  if (row.user.role === 'customer') {
+    const profile = row.customerProfile
+    if (!profile) return null
+    return { id: row.user.id, email: row.user.email, role: 'customer', name: profile.fullName, phone: profile.phone }
   }
+  if (row.user.role !== 'owner') return null
+  const profile = row.ownerProfile
+  if (!profile) return null
+  return { id: row.user.id, email: row.user.email, role: 'owner', name: profile.displayName, phone: profile.phone }
 }
 
 async function loadSessionUser(tokenHash: string): Promise<{ session: typeof sessions.$inferSelect; safeUser: SafeUser } | null> {
@@ -64,12 +64,12 @@ async function loadSessionUser(tokenHash: string): Promise<{ session: typeof ses
       session: sessions,
       user: users,
       customerProfile: customerProfiles,
-      staffProfile: staffProfiles,
+      ownerProfile: ownerProfiles,
     })
     .from(sessions)
     .innerJoin(users, eq(sessions.userId, users.id))
     .leftJoin(customerProfiles, eq(customerProfiles.userId, users.id))
-    .leftJoin(staffProfiles, eq(staffProfiles.userId, users.id))
+    .leftJoin(ownerProfiles, eq(ownerProfiles.userId, users.id))
     .where(and(eq(sessions.tokenHash, tokenHash), isNull(sessions.revokedAt), gt(sessions.expiresAt, now)))
     .limit(1)
 
@@ -78,7 +78,7 @@ async function loadSessionUser(tokenHash: string): Promise<{ session: typeof ses
   return safeUser ? { session: row.session, safeUser } : null
 }
 
-export async function createSession(userId: string, role: 'customer' | 'owner' | 'staff'): Promise<string> {
+export async function createSession(userId: string, role: 'customer' | 'owner'): Promise<string> {
   const token = generateSessionToken()
   const now = new Date()
   const expiresAt = new Date(now.getTime() + sessionLifetimeDays(role) * 24 * 60 * 60 * 1000)

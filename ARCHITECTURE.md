@@ -21,7 +21,25 @@ De applicatie is functioneel single-barber:
 - er is een customer;
 - er is één barber/beheerder.
 
-De technische rolbenamingen `customer` en `staff` blijven bestaan waar de code die gebruikt. Er wordt geen multi-barber scheduling-, assignment- of staff-availabilitymodel toegevoegd zonder expliciete requirement.
+De technische rolbenamingen zijn `customer` en `owner`. Er wordt geen multi-barber scheduling-, assignment- of staff-availabilitymodel toegevoegd zonder expliciete requirement.
+
+### 1.1 Owner-only runtime
+
+**CURRENT**
+
+De owner-only beslissing is server-side afgedwongen, niet alleen benoemd in de UI:
+
+- `users.role = 'owner'` is database-gedwongen uniek via `users_single_owner_idx` (migration `0010_single_owner.sql`);
+- `createInitialOwnerAccount()` weigert een tweede eigenaar en is transactioneel; provisioning verloopt uitsluitend via `scripts/create-owner.ts` (`npm run auth:create-owner`);
+- appointment- en queue-lifecyclemutaties werken met een owner actor (`kind: 'owner'`), niet met een staff actor;
+- `resolveSingleBarber()` selecteert de actieve `owner`-gebruiker als capaciteits-eigenaar;
+- legacy `staff`-rijen authenticeren niet: `toSafeUser()` en `login()` negeren de `staff`-rol;
+- de owner-navigatie is `Dashboard / Afspraken / Wachtrij / Profiel`, waarbij `/owner/profile` een compacte profielhub is (eigenaaraccount, profiel bewerken, logout en navigatie-cards naar `/owner`, `/owner/appointments`, `/owner/queue` en `/owner/settings`); salon-, boekings-, openingsuur-, pauze/blokkade- en dienstenbeheer (`OwnerSettingsSections`) bestaan uitsluitend op `/owner/settings`;
+- de customer- en gastenfunctionaliteit blijft multi-account: er kunnen meerdere `customer`-accounts bestaan.
+
+**ARCHITECTURE RULE**
+
+Nieuwe code introduceert geen staff-, employee- of multi-barberconcept, gebruikt geen `requireStaff()` en legt geen tweede eigenaar aan. Historische benamingen (`barber_user_id`, `.staff-nav`, `user_role`-enumwaarde `staff`) blijven alleen bestaan als compatibiliteits-/CSS-legacy zonder autorisatie te bieden.
 
 In dit document betekenen de labels:
 
@@ -82,7 +100,7 @@ Nieuwe code sluit aan op TanStack Start, TypeScript, de bestaande UI en de besta
 - npm met `package-lock.json`;
 - `lucide-react` voor iconen.
 
-Scripts in `package.json` zijn `dev`, `build`, `typecheck`, `preview`, `db:check`, `db:generate` en `auth:create-staff`. Er is geen testscript, migratie-toepasscript, seedscript of production-startscript in `package.json`.
+Scripts in `package.json` zijn `dev`, `build`, `test`, `test:watch`, `lint`, `typecheck`, `preview`, `db:check`, `db:generate` en `auth:create-owner`. Er is geen migratie-toepasscript of production-startscript in `package.json`. Staff provisioning (`create-staff.ts`) is verwijderd.
 
 **ARCHITECTURE RULE**
 
@@ -126,7 +144,7 @@ De huidige verantwoordelijkheden zijn:
 - `src/data/mockData.ts`: hardcoded demo-data;
 - `src/styles/`: globale styling en theme;
 - `drizzle/`: gegenereerde SQL migrations en metadata;
-- `scripts/`: operationele scripts, momenteel `create-staff.ts`.
+- `scripts/`: operationele scripts, momenteel `create-owner.ts` (éénmalige aanmaak van de eigenaar).
 
 `src/App.tsx` en `src/main.tsx` zijn overgangs-placeholders; routing en providers lopen via TanStack Start en `src/routes/__root.tsx`.
 
@@ -148,9 +166,9 @@ De huidige routes zijn:
 
 - publiek: `/`, `/login`, `/create-account`;
 - customer: `/home`, `/booking`, `/bookings`, `/queue`, `/profile`;
-- staff: `/staff`, `/staff/appointments`, `/staff/queue`, `/staff/profile`.
+- owner: `/owner`, `/owner/appointments`, `/owner/queue`, `/owner/profile`, `/owner/settings`.
 
-`src/routes/_customer.tsx` en `src/routes/_staff.tsx` zijn pathless layouts. Zij roepen in een server loader `getCurrentUserFn()` aan, redirecten op basis van de rol en renderen daarnaast een client-side `RequireAuth` guard.
+`src/routes/_customer.tsx` en `src/routes/_owner.tsx` zijn pathless layouts. Zij roepen in een server loader `getCurrentUserFn()` aan, redirecten op basis van de rol en renderen daarnaast een client-side `RequireAuth` guard.
 
 `/` redirect momenteel altijd naar `/home`. Omdat `/home` onder `_customer` valt, is de huidige home niet publiek toegankelijk.
 
@@ -212,7 +230,7 @@ De Server Functions staan in `src/auth/auth.functions.ts`, `src/settings/setting
 - `getCurrentUserFn`;
 - `refreshSessionFn`.
 
-Server Functions voor appointment creation, retrieval, listing en lifecycle, staff settings en de queue-boundary bestaan. Services CRUD en availability Server Functions bestaan nog niet.
+Server Functions voor appointment creation, retrieval, listing en lifecycle, owner settings en de queue-boundary bestaan. Services CRUD en availability Server Functions bestaan nog niet.
 
 **ARCHITECTURE RULE**
 
@@ -242,13 +260,15 @@ Authentication beantwoordt de vraag wie de gebruiker is. Authorization bepaalt o
 
 - Wachtwoorden worden met Argon2id gehasht via `@node-rs/argon2`.
 - De huidige parameters zijn algorithm `2`, memory cost `19_456`, time cost `2` en parallelism `1`.
+- Registratie valideert het wachtwoord client-side en opnieuw in de server-function validator via `registerCustomerSchema`.
+- Validatiefouten worden als Nederlandse `AuthError`-melding teruggegeven, niet als ruwe Zod-fouten.
 - Sessies zijn database-backed.
 - Een random token van 32 bytes wordt base64url-gecodeerd.
 - Alleen de SHA-256 hash van het sessietoken wordt opgeslagen.
 - De cookie heet `ck_session`.
 - De cookie is `HttpOnly`, `SameSite=Lax`, heeft path `/` en is `Secure` in production.
 - Customer sessions hebben een lifetime van 30 dagen.
-- Staff sessions hebben een lifetime van 7 dagen.
+- Owner sessions hebben een lifetime van 7 dagen (customer sessions 30 dagen).
 - Refresh is begrensd op 90 dagen vanaf het aanmaken van de sessie.
 - Verlopen en ingetrokken sessies worden server-side gecontroleerd.
 - Refresh roteert het token en trekt het vorige token in.
@@ -264,8 +284,10 @@ Authentication beantwoordt de vraag wie de gebruiker is. Authorization bepaalt o
 
 - `requireAuthenticatedUser()`;
 - `requireCustomer()`;
-- `requireStaff()`;
+- `requireOwner()`;
 - `requireOwnership()`.
+
+`requireStaff()` is verwijderd; owner-only authorisatie gebeurt uitsluitend via `requireOwner()`.
 
 Deze helpers zijn de basis voor toekomstige domeinmutaties. De bestaande `authMiddleware` in `src/auth/middleware.ts` is momenteel niet aan Server Functions gekoppeld.
 
@@ -278,8 +300,8 @@ Deze helpers zijn de basis voor toekomstige domeinmutaties. De bestaande `authMi
 - Een customer mag alleen eigen customer-data beheren.
 - Een customer mag alleen eigen afspraken lezen, wijzigen of annuleren volgens `BUSINESS_RULES.md`.
 - Een guest krijgt geen ongecontroleerde toegang tot bestaande customer appointments.
-- Staff/barber mag relevante salon- en afspraakdata beheren volgens de business rules.
-- Staff-only mutations vereisen server-side `requireStaff()`.
+- De eigenaar mag relevante salon- en afspraakdata beheren volgens de business rules.
+- Owner-only mutations vereisen server-side `requireOwner()`; appointment- en queue-lifecyclemutaties vereisen de owner actor (`requireOwnerMutationActor()` / `requireOwnerQueueActor()`).
 - Ownership wordt server-side gecontroleerd met de relevante identity, niet met een client-aangeleverd customer ID.
 
 > UI visibility is geen authorization mechanism.
@@ -301,7 +323,7 @@ De schema’s bevatten UUID primary keys, foreign keys, constraints, indexes en 
 De huidige schema’s bevatten:
 
 - `users` en `sessions`;
-- `customer_profiles` en `staff_profiles`;
+- `customer_profiles` en `owner_profiles` (historische tablenaam `staff_profiles` is hernoemd in migration `0009_owner_profiles.sql`);
 - `services`;
 - `appointments`;
 - `business_profile`, `opening_hours` en `break_periods`;
@@ -426,7 +448,7 @@ De volledige appointment range, niet alleen het starttijdstip, moet beschikbaar 
 
 **ARCHITECTURE RULE**
 
-Configureerbare waarden komen uit database/configuration. De availability engine mag geen permanente hardcoded business values bevatten voor buffer, openingstijden, serviceduur of andere configureerbare regels. Het bookinginterval is een vaste technische/businessregel van 15 minuten en geldt voor zowel customer als staff. Het interval wordt niet als configureerbare database-setting opgeslagen. Availability, booking validation en de UI moeten deze 15-minutenintervallen respecteren. Bestaande overlap-, buffer- en concurrencylogica blijft leidend.
+Configureerbare waarden komen uit database/configuration. De availability engine mag geen permanente hardcoded business values bevatten voor buffer, openingstijden, serviceduur of andere configureerbare regels. Het bookinginterval is een vaste technische/businessregel van 15 minuten en geldt voor zowel customer als owner. Het interval wordt niet als configureerbare database-setting opgeslagen. Availability, booking validation en de UI moeten deze 15-minutenintervallen respecteren. Bestaande overlap-, buffer- en concurrencylogica blijft leidend.
 
 ---
 
@@ -454,7 +476,7 @@ Appointment create en update moeten concurrency-safe zijn wanneer overlap niet i
 
 is onvoldoende, omdat twee gelijktijdige requests hetzelfde interval kunnen claimen.
 
-Appointment creation gebruikt PostgreSQL transaction-level advisory locking per server-resolved barber. De lock wordt vóór overlapquery en insert in dezelfde transaction verkregen. `SELECT FOR UPDATE` op uitsluitend bestaande conflicterende rows is daarom niet de gekozen strategie.
+Appointment creation gebruikt PostgreSQL transaction-level advisory locking per server-resolved eigenaar (`resolveSingleBarber()` selecteert de actieve `owner`-gebruiker). De lock wordt vóór overlapquery en insert in dezelfde transaction verkregen. `SELECT FOR UPDATE` op uitsluitend bestaande conflicterende rows is daarom niet de gekozen strategie.
 
 De concrete implementatie gebruikt `pg_advisory_xact_lock(hashtextextended(...))` en accepteert conflicten niet stilzwijgend.
 
@@ -486,10 +508,10 @@ De business rules staan toe dat de barber, afhankelijk van configuratie, handmat
 **ARCHITECTURE RULE**
 
 - normale customer availability blijft strikt;
-- barber actions zijn afzonderlijk geautoriseerd;
+- owner actions zijn afzonderlijk geautoriseerd;
 - een override vereist expliciete configuratie en/of bevestiging volgens de business rules;
 - uitzonderlijke afspraken worden niet automatisch als customer slots aangeboden;
-- dit is geen multi-staff scheduling model.
+- dit is geen multi-staff scheduling model (single-owner model);
 
 ---
 
@@ -551,7 +573,7 @@ Responses bevatten bruikbare maar veilige foutinformatie. SQL-details, stack tra
 
 **ARCHITECTURE RULE**
 
-Audit logging gebeurt server-side voor auth events en gevoelige administratieve acties, waaronder belangrijke instellingen, appointment status changes en relevante staff-beheeracties. De bestaande auditinfrastructuur is de basis.
+Audit logging gebeurt server-side voor auth events en gevoelige administratieve acties, waaronder belangrijke instellingen, appointment status changes en relevante owner-beheeracties. De bestaande auditinfrastructuur is de basis.
 
 Appointment- en queuemutaties worden via de bestaande domain services server-side geaudit. Services CRUD- en profilemutaties hebben nog geen volledige Server Function-workflow.
 
@@ -599,7 +621,7 @@ Er is momenteel geen afzonderlijk feature-flagmechanisme in de repository vastge
 
 **CURRENT**
 
-De UI is mobile-first en gebruikt een donkere stijl met gouden accentkleur, een maximale contentbreedte van 520px, een responsive desktop wrapper rond 700px en vaste customer/staff bottom navigation. `src/styles/theme.css` bevat de globale styling. Bestaande componenten omvatten onder andere `Button`, `Card`, `Field`, `ServiceCard`, `BookingCard`, navigatiecomponenten en route guards.
+De UI is mobile-first en gebruikt een donkere stijl met gouden accentkleur, een maximale contentbreedte van 520px, een responsive desktop wrapper rond 700px en vaste customer/owner bottom navigation (`BottomNav` en `OwnerBottomNav`; de owner-klasnaam `.staff-nav` is legacy). `src/styles/theme.css` bevat de globale styling. Bestaande componenten omvatten onder andere `Button`, `Card`, `Field`, `ServiceCard`, `BookingCard`, navigatiecomponenten en route guards.
 
 **ARCHITECTURE RULE**
 
@@ -614,7 +636,7 @@ De bestaande public UI en visuele identiteit zijn leidend. Nieuwe functionalitei
 - Auth state wordt door `AuthContext` beheerd.
 - `AppointmentContext` houdt mock appointments in lokale React state en ondersteunt lokale add/update-operaties.
 - `WaitingListContext` houdt hardcoded waiting-list entries in lokale React state.
-- `mockData.ts` bevat hardcoded salon-, service-, barber- en appointmentdata.
+- `src/data/mockData.ts` bevat hardcoded salon-, service-, barber- en appointmentdata en is transitional.
 - Pagina’s tonen grotendeels lokale of hardcoded state; server-derived domeinstate ontbreekt voor appointments, services, availability, settings en queue.
 
 **ARCHITECTURE RULE**
@@ -658,7 +680,7 @@ Kritieke server-side regels moeten worden getest voor:
 - overlap en concurrency;
 - timezone, datumgrenzen en DST;
 - service snapshots;
-- guest/customer/barber permissions;
+- guest/customer/owner permissions;
 - configuratie en business rule violations.
 
 Tests moeten de domain/service-laag en Server Functions kunnen isoleren en mogen niet uitsluitend de huidige mock UI testen.
@@ -725,8 +747,8 @@ De volgende verschillen tussen requirements en de huidige implementatie zijn vas
 - Services, settings, opening hours, booking settings en queue zijn in het schema deels voorbereid, maar hebben geen volledige server API en beheer-UI.
 - De database heeft momenteel geen overlap exclusion of gelijkwaardige concurrencyconstraint.
 - De UI gebruikt hardcoded mock data voor businessinformatie, services, tijden, appointments en queuegedrag.
-- Staff appointment UI valideert lokaal, controleert geen volledige duration overlap, laat terminale afspraken lokaal bewerken en exposeert niet alle vereiste lifecycle transitions.
-- De staff UI toont een source selector, terwijl `BUSINESS_RULES.md` source selection niet als afzonderlijke productfunctionaliteit vereist.
+- Owner appointment UI valideert lokaal, controleert geen volledige duration overlap, laat terminale afspraken lokaal bewerken en exposeert niet alle vereiste lifecycle transitions.
+- De owner UI toont een source selector, terwijl `BUSINESS_RULES.md` source selection niet als afzonderlijke productfunctionaliteit vereist.
 - `authMiddleware` en session refresh bestaan, maar zijn niet volledig geïntegreerd in alle server flows.
 - `src/db/README.md` loopt achter op de aanwezige authentication implementation.
 

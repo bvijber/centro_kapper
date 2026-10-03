@@ -147,7 +147,7 @@ Gebruik bestaande helpers wanneer passend:
 
 - `requireAuthenticatedUser()`;
 - `requireCustomer()`;
-- `requireStaff()`;
+- `requireOwner()`;
 - `requireOwnership()`.
 
 Een nieuwe Server Function moet zowel functioneel als veilig zijn. Security checks horen niet alleen in de route of component die de functie aanroept.
@@ -224,7 +224,7 @@ Niet automatisch:
 - desktop-first maken;
 - bestaande spacing, typography of visual hierarchy vervangen.
 
-Herken en hergebruik bestaande components, CSS-variabelen, logo/assets, customer/staff navigation en mobile-first patronen. Functionele UI-aanpassingen blijven binnen scope en mogen geen business authority worden.
+Herken en hergebruik bestaande components, CSS-variabelen, logo/assets, customer/owner navigation en mobile-first patronen. Functionele UI-aanpassingen blijven binnen scope en mogen geen business authority worden.
 
 ---
 

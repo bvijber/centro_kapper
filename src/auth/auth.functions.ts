@@ -1,10 +1,10 @@
 import { createServerFn } from '@tanstack/react-start'
 
 import { login, logout, getCurrentUser, refreshSession, registerCustomer } from './auth.service.server'
-import { loginSchema, registerCustomerSchema } from './auth.schemas'
+import { loginSchema, parseRegisterCustomerInput } from './auth.schemas'
 
 export const registerCustomerFn = createServerFn({ method: 'POST' })
-  .validator(registerCustomerSchema)
+  .validator(parseRegisterCustomerInput)
   .handler(({ data }) => registerCustomer(data))
 
 export const loginFn = createServerFn({ method: 'POST' })

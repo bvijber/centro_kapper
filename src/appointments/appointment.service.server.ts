@@ -3,7 +3,7 @@ import { and, asc, eq, gt, isNull, lt } from 'drizzle-orm'
 import { recordAuditEvent } from '../auth/audit.server'
 import { AuthError, isAuthError } from '../auth/auth.errors'
 import { db } from '../db/client.server'
-import { staffProfiles } from '../db/schema/profiles'
+import { ownerProfiles } from '../db/schema/profiles'
 import { services } from '../db/schema/services'
 import { users } from '../db/schema/users'
 import { bookingSettings, breakPeriods, businessProfile, openingHours, wholeDayBlocks } from '../db/schema/business'
@@ -13,7 +13,7 @@ import { calculateAvailableSlots, isSlotAvailable, type AvailabilityAppointment,
 import type { AvailabilityInput as AvailabilityRequest } from '../availability/availability.schemas'
 import { getAmsterdamDateTimeParts, getAmsterdamDayBounds, parseAmsterdamLocal } from '../timezone'
 import type { AppointmentActor } from './appointment.authorization'
-import { requireAppointmentMutationAccess, requireStaffMutationActor, type AppointmentMutationActor } from './appointment.authorization'
+import { requireAppointmentMutationAccess, requireOwnerMutationActor, type AppointmentMutationActor } from './appointment.authorization'
 import { calculateOccupiedEnd, canTransitionAppointmentStatus, canTransitionCancellationRequestStatus, type CancellationRequestStatus } from './appointment.domain'
 import type { AppointmentCreateInput, AppointmentListInput, AppointmentModifyInput, AppointmentStatusUpdateInput, CancellationRequestListInput } from './appointment.schemas'
 import { acquireAppointmentLock } from './appointment.overlap'
@@ -159,11 +159,11 @@ async function resolveSingleBarber(tx: Parameters<Parameters<typeof db.transacti
   const rows = await tx
     .select({ id: users.id })
     .from(users)
-    .innerJoin(staffProfiles, eq(staffProfiles.userId, users.id))
-    .where(and(eq(users.role, 'staff'), eq(staffProfiles.active, true)))
+    .innerJoin(ownerProfiles, eq(ownerProfiles.userId, users.id))
+    .where(and(eq(users.role, 'owner'), eq(ownerProfiles.active, true)))
     .orderBy(asc(users.id))
     .limit(2)
-  if (rows.length !== 1) throw new AppointmentError('De actieve barberconfiguratie is ongeldig.', 'FAILED')
+  if (rows.length !== 1) throw new AppointmentError('De actieve ownerconfiguratie is ongeldig.', 'FAILED')
   return rows[0].id
 }
 
@@ -266,7 +266,7 @@ export async function createAppointment(input: AppointmentCreateInput, actor: Ap
       const [service] = await tx.select().from(services).where(and(eq(services.id, input.serviceId), eq(services.active, true), isNull(services.archivedAt))).limit(1)
       if (!service) throw new AppointmentError('Deze dienst is niet beschikbaar.', 'INVALID')
 
-      if (actor.kind === 'staff' && input.customerUserId) {
+      if (actor.kind === 'owner' && input.customerUserId) {
         const [customer] = await tx.select({ id: users.id }).from(users).where(and(eq(users.id, input.customerUserId), eq(users.role, 'customer'))).limit(1)
         if (!customer) throw new AppointmentError('De gekozen customer bestaat niet.', 'INVALID')
       }
@@ -275,9 +275,9 @@ export async function createAppointment(input: AppointmentCreateInput, actor: Ap
       if (!settings) throw new AppointmentError('Boekingsinstellingen ontbreken.', 'FAILED')
 
       const availabilityInput = await loadAvailabilityInput(tx, { serviceId: input.serviceId, date: localBooking.date }, {
-        openingHours: actor.kind === 'staff' && input.overrideOpeningHours,
-        break: actor.kind === 'staff' && input.overrideBreak,
-        wholeDayBlock: actor.kind === 'staff' && input.overrideWholeDayBlock,
+        openingHours: actor.kind === 'owner' && input.overrideOpeningHours,
+        break: actor.kind === 'owner' && input.overrideBreak,
+        wholeDayBlock: actor.kind === 'owner' && input.overrideWholeDayBlock,
       })
       if (localBooking.startsAt < new Date() || !isSlotAvailable(availabilityInput, localBooking.startsAt)) {
         throw new AppointmentError('Dit tijdstip is niet meer beschikbaar.', 'CONFLICT')
@@ -285,7 +285,7 @@ export async function createAppointment(input: AppointmentCreateInput, actor: Ap
       const endsAt = calculateOccupiedEnd(localBooking.startsAt, service.durationMinutes, settings.bufferMinutes)
       const [conflict] = await findOverlappingAppointments(tx, { startsAt: localBooking.startsAt, endsAt })
       if (conflict) {
-        if (actor.kind !== 'staff' || settings.overlapBehavior === 'block' || !input.confirmOverlap) {
+        if (actor.kind !== 'owner' || settings.overlapBehavior === 'block' || !input.confirmOverlap) {
           throw new AppointmentError(
             settings.overlapBehavior === 'allow_with_warning'
               ? 'Dit tijdstip overlapt met een bestaande afspraak en vereist bevestiging van de eigenaar.'
@@ -296,10 +296,10 @@ export async function createAppointment(input: AppointmentCreateInput, actor: Ap
       }
 
       const created = await insertAppointment(tx, {
-        customerUserId: actor.kind === 'customer' ? actor.userId : actor.kind === 'staff' ? input.customerUserId : null,
-        guestName: actor.kind === 'guest' || (actor.kind === 'staff' && input.customerUserId === undefined) ? input.guestName ?? null : null,
-        guestPhone: actor.kind === 'guest' || (actor.kind === 'staff' && input.customerUserId === undefined) ? input.guestPhone ?? null : null,
-        guestEmail: actor.kind === 'guest' || (actor.kind === 'staff' && input.customerUserId === undefined) ? input.guestEmail ?? null : null,
+        customerUserId: actor.kind === 'customer' ? actor.userId : actor.kind === 'owner' ? input.customerUserId : null,
+        guestName: actor.kind === 'guest' || (actor.kind === 'owner' && input.customerUserId === undefined) ? input.guestName ?? null : null,
+        guestPhone: actor.kind === 'guest' || (actor.kind === 'owner' && input.customerUserId === undefined) ? input.guestPhone ?? null : null,
+        guestEmail: actor.kind === 'guest' || (actor.kind === 'owner' && input.customerUserId === undefined) ? input.guestEmail ?? null : null,
         barberUserId,
         serviceId: service.id,
         serviceNameAtBooking: service.name,
@@ -311,9 +311,9 @@ export async function createAppointment(input: AppointmentCreateInput, actor: Ap
         status: 'new',
         note: input.note ?? null,
         createdByUserId: actor.kind === 'guest' ? null : actor.userId,
-        overrideOpeningHours: actor.kind === 'staff' ? input.overrideOpeningHours : false,
-        overrideBreak: actor.kind === 'staff' ? input.overrideBreak : false,
-        overrideWholeDayBlock: actor.kind === 'staff' ? input.overrideWholeDayBlock : false,
+        overrideOpeningHours: actor.kind === 'owner' ? input.overrideOpeningHours : false,
+        overrideBreak: actor.kind === 'owner' ? input.overrideBreak : false,
+        overrideWholeDayBlock: actor.kind === 'owner' ? input.overrideWholeDayBlock : false,
       })
       if (!created) throw new AppointmentError('Afspraak kon niet worden aangemaakt.', 'FAILED')
 
@@ -355,7 +355,7 @@ export async function listCustomerAppointments(userId: string, input: Appointmen
   }
 }
 
-export async function listStaffAppointments(input: AppointmentListInput): Promise<AppointmentDTO[]> {
+export async function listOwnerAppointments(input: AppointmentListInput): Promise<AppointmentDTO[]> {
   try {
     const rows = await listAppointments(db, { from: input.from, to: input.to })
     return rows.map(mapAppointment)
@@ -414,7 +414,7 @@ export async function updateAppointmentStatus(id: string, targetStatus: Appointm
   try {
     return await db.transaction(async (tx) => {
       return withAppointmentLock(tx, async () => {
-        requireStaffMutationActor(actor)
+        requireOwnerMutationActor(actor)
         const appointment = await findAppointmentById(tx, id)
         if (!appointment) throw new AppointmentError('Afspraak niet gevonden.', 'NOT_FOUND')
         if (!canTransitionAppointmentStatus(appointment.status, targetStatus)) {
@@ -497,7 +497,7 @@ export async function modifyAppointment(id: string, input: AppointmentModifyInpu
         }
         if (actor.kind === 'customer') {
           if (input.overrideOpeningHours || input.overrideBreak || input.overrideWholeDayBlock) {
-            throw new AuthError('Alleen staff mag availability overrides instellen.', 'FORBIDDEN')
+            throw new AuthError('Alleen de eigenaar mag beschikbaarheid overrulen.', 'FORBIDDEN')
           }
         }
 
@@ -523,7 +523,7 @@ export async function modifyAppointment(id: string, input: AppointmentModifyInpu
         let guestPhone = appointment.guestPhone
         let guestEmail = appointment.guestEmail
         if (input.customerUserId !== undefined) {
-          requireStaffMutationActor(actor)
+          requireOwnerMutationActor(actor)
           const [customer] = await tx.select({ id: users.id }).from(users).where(and(eq(users.id, input.customerUserId), eq(users.role, 'customer'))).limit(1)
           if (!customer) throw new AppointmentError('De gekozen customer bestaat niet.', 'INVALID')
           customerUserId = customer.id
@@ -542,7 +542,7 @@ export async function modifyAppointment(id: string, input: AppointmentModifyInpu
           if (newStartsAt.getTime() < Date.now()) {
             throw new AppointmentError('Het gekozen tijdstip ligt in het verleden.', 'CONFLICT')
           }
-          const overrides = actor.kind === 'staff'
+          const overrides = actor.kind === 'owner'
             ? { openingHours: input.overrideOpeningHours, break: input.overrideBreak, wholeDayBlock: input.overrideWholeDayBlock }
             : undefined
           const availabilityInput = await loadAvailabilityInput(tx, { serviceId, date: localBooking.date }, overrides)
@@ -572,7 +572,7 @@ export async function modifyAppointment(id: string, input: AppointmentModifyInpu
           values.bufferMinutesAtBooking = settings.bufferMinutes
           values.startsAt = newStartsAt
           values.endsAt = newEndsAt
-          if (actor.kind === 'staff') {
+          if (actor.kind === 'owner') {
             values.overrideOpeningHours = input.overrideOpeningHours
             values.overrideBreak = input.overrideBreak
             values.overrideWholeDayBlock = input.overrideWholeDayBlock
@@ -690,7 +690,7 @@ export async function approveCancellationRequest(id: string, actor: AppointmentM
   try {
     return await db.transaction(async (tx) => {
       return withAppointmentLock(tx, async () => {
-        requireStaffMutationActor(actor)
+        requireOwnerMutationActor(actor)
         const request = await findCancellationRequestById(tx, id)
         if (!request) throw new AppointmentError('Annuleringsverzoek niet gevonden.', 'NOT_FOUND')
         const locked = await findCancellationRequestByIdForUpdate(tx, id)
@@ -732,7 +732,7 @@ export async function rejectCancellationRequest(id: string, actor: AppointmentMu
   try {
     return await db.transaction(async (tx) => {
       return withAppointmentLock(tx, async () => {
-        requireStaffMutationActor(actor)
+        requireOwnerMutationActor(actor)
         const request = await findCancellationRequestById(tx, id)
         if (!request) throw new AppointmentError('Annuleringsverzoek niet gevonden.', 'NOT_FOUND')
         const locked = await findCancellationRequestByIdForUpdate(tx, id)

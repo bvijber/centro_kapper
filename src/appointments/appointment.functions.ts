@@ -7,7 +7,7 @@ import { consumeRateLimit } from '../auth/rate-limit.server'
 import { getClientIP } from '../auth/request-context.server'
 import { availabilitySchema } from '../availability/availability.schemas'
 import { authorizeAppointmentCreate, resolveMutationActor } from './appointment.authorization'
-import { AppointmentError, approveCancellationRequest, cancelAppointment, createAppointment, getAppointment, getAvailability, listBookableServices, listCancellationRequests, listCustomerAppointments, listStaffAppointments, modifyAppointment, rejectCancellationRequest, requestCancellation, updateAppointmentStatus, withdrawCancellationRequest } from './appointment.service.server'
+import { AppointmentError, approveCancellationRequest, cancelAppointment, createAppointment, getAppointment, getAvailability, listBookableServices, listCancellationRequests, listCustomerAppointments, listOwnerAppointments, modifyAppointment, rejectCancellationRequest, requestCancellation, updateAppointmentStatus, withdrawCancellationRequest } from './appointment.service.server'
 import {
   appointmentCancelSchema,
   appointmentCreateSchema,
@@ -40,7 +40,7 @@ export const getAppointmentFn = createServerFn({ method: 'GET' }).validator(appo
 
 export const listAppointmentsFn = createServerFn({ method: 'GET' }).validator(appointmentListSchema).handler(async ({ data }) => {
   const user = await requireAuthenticatedUser()
-  return user.role === 'owner' ? listStaffAppointments(data) : listCustomerAppointments(user.id, data)
+  return user.role === 'owner' ? listOwnerAppointments(data) : listCustomerAppointments(user.id, data)
 })
 
 export const updateAppointmentStatusFn = createServerFn({ method: 'POST' }).validator(appointmentStatusUpdateSchema).handler(async ({ data }) => {

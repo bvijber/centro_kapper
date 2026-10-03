@@ -7,7 +7,7 @@ describe.skipIf(!databaseAvailable)('appointment lifecycle integration', () => {
   it('enforces the full lifecycle, cancellation requests and deadlines transactionally', async () => {
     const { db } = await import('../db/client.server')
     const { and, eq, inArray } = await import('drizzle-orm')
-    const { appointments, auditLogs, bookingSettings, cancellationRequests, customerProfiles, services, staffProfiles, users } = await import('../db/schema')
+    const { appointments, auditLogs, bookingSettings, cancellationRequests, customerProfiles, services, ownerProfiles, users } = await import('../db/schema')
     const {
       approveCancellationRequest,
       cancelAppointment,
@@ -16,19 +16,15 @@ describe.skipIf(!databaseAvailable)('appointment lifecycle integration', () => {
       updateAppointmentStatus,
     } = await import('./appointment.service.server')
 
+    const { ensureActiveOwnerFixture, removeOwnerFixture } = await import('../../tests/helpers/owner-fixture')
+
     const suffix = randomUUID()
-    const staffId = randomUUID()
     const customerId = randomUUID()
     const serviceId = randomUUID()
-    const staffEmail = `lifecycle-staff-${suffix}@example.com`
     const customerEmail = `lifecycle-customer-${suffix}@example.com`
 
-    const [existingBarber] = await db.select({ id: users.id }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id)).where(and(eq(users.role, 'staff'), eq(staffProfiles.active, true))).limit(1)
-    const barberId = existingBarber?.id ?? staffId
-    if (!existingBarber) {
-      await db.insert(users).values({ id: staffId, email: staffEmail, role: 'staff' })
-      await db.insert(staffProfiles).values({ userId: staffId, displayName: 'Lifecycle Test Barber', phone: '0612345678', active: true })
-    }
+    const ownerFixture = await ensureActiveOwnerFixture('lifecycle')
+    const barberId = ownerFixture.userId
     await db.insert(users).values({ id: customerId, email: customerEmail, role: 'customer' })
     await db.insert(customerProfiles).values({ userId: customerId, fullName: 'Lifecycle Customer', phone: '0612345678' })
     await db.insert(services).values({ id: serviceId, name: 'Lifecycle Test Service', description: 'Lifecycle fixture', durationMinutes: 30, priceCents: 1000, active: true })
@@ -58,7 +54,7 @@ describe.skipIf(!databaseAvailable)('appointment lifecycle integration', () => {
         return created
       }
 
-      const staffActor = { kind: 'staff' as const, userId: barberId }
+      const ownerActor = { kind: 'owner' as const, userId: barberId }
       const customerActor = { kind: 'customer' as const, userId: customerId }
 
       const farFuture = new Date('2099-02-02T09:00:00.000Z')
@@ -73,16 +69,16 @@ describe.skipIf(!databaseAvailable)('appointment lifecycle integration', () => {
         overrideBreak: false,
         overrideWholeDayBlock: false,
         confirmOverlap: false,
-      }, staffActor)).rejects.toMatchObject({ code: 'INVALID' })
-      const confirmed = await updateAppointmentStatus(lifecycle.id, 'confirmed', staffActor)
+      }, ownerActor)).rejects.toMatchObject({ code: 'INVALID' })
+      const confirmed = await updateAppointmentStatus(lifecycle.id, 'confirmed', ownerActor)
       expect(confirmed.status).toBe('confirmed')
       await db.update(bookingSettings).set({ noShowReleaseBehavior: 'automatic' }).where(eq(bookingSettings.id, 1))
-      const noShow = await updateAppointmentStatus(lifecycle.id, 'no_show', staffActor)
+      const noShow = await updateAppointmentStatus(lifecycle.id, 'no_show', ownerActor)
       expect(noShow.status).toBe('no_show')
       expect(noShow.slotReleasedAt).not.toBeNull()
 
       const toCancel = await insertAppointment(farFuture, null)
-      const cancelled = await cancelAppointment(toCancel.id, staffActor)
+      const cancelled = await cancelAppointment(toCancel.id, ownerActor)
       expect(cancelled.status).toBe('cancelled')
       expect(cancelled.cancelledAt).not.toBeNull()
 
@@ -91,7 +87,7 @@ describe.skipIf(!databaseAvailable)('appointment lifecycle integration', () => {
       expect(request.status).toBe('pending')
       requestIds.push(request.id)
       await expect(requestCancellation(toRequest.id, 'Opnieuw', customerActor)).rejects.toMatchObject({ code: 'CONFLICT' })
-      const approved = await approveCancellationRequest(request.id, staffActor)
+      const approved = await approveCancellationRequest(request.id, ownerActor)
       expect(approved.request.status).toBe('approved')
       expect(approved.appointment.status).toBe('cancelled')
 
@@ -114,10 +110,7 @@ describe.skipIf(!databaseAvailable)('appointment lifecycle integration', () => {
       await db.delete(customerProfiles).where(eq(customerProfiles.userId, customerId))
       await db.delete(users).where(eq(users.id, customerId))
       await db.delete(services).where(eq(services.id, serviceId))
-      if (!existingBarber) {
-        await db.delete(staffProfiles).where(eq(staffProfiles.userId, barberId))
-        await db.delete(users).where(eq(users.id, barberId))
-      }
+      await removeOwnerFixture(ownerFixture)
     }
   })
 })

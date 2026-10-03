@@ -5,7 +5,7 @@ import type { AppointmentDTO, BookableServiceDTO, CancellationRequestListItemDTO
 import { approveCancellationRequestFn, cancelAppointmentFn, createAppointmentFn, getAvailabilityFn, listAppointmentsFn, listBookableServicesFn, listCancellationRequestsFn, modifyAppointmentFn, rejectCancellationRequestFn, updateAppointmentStatusFn } from '../appointments/appointment.functions'
 import { appointmentStatusClass, appointmentStatusLabel, formatPriceCents } from '../appointments/appointment.presentation'
 import { Card } from '../components/Card'
-import { StaffBottomNav } from '../components/StaffBottomNav'
+import { OwnerBottomNav } from '../components/OwnerBottomNav'
 import logo from '../assets/logo_centro_kapper.jpeg'
 import { addCalendarDays, formatAmsterdamDate, formatAmsterdamDateKey, getAmsterdamDateParts, formatAmsterdamTime } from '../timezone'
 import { publicErrorMessage } from '../components/publicError'
@@ -19,7 +19,7 @@ function errorMessage(caught: unknown): string {
 
 const todayKey = () => formatAmsterdamDateKey(new Date())
 
-export function StaffAppointments() {
+export function OwnerAppointments() {
   const [appointments, setAppointments] = useState<AppointmentDTO[]>([])
   const [pendingRequests, setPendingRequests] = useState<CancellationRequestListItemDTO[]>([])
   const [services, setServices] = useState<BookableServiceDTO[]>([])
@@ -115,7 +115,7 @@ export function StaffAppointments() {
   return <main className="page shell staff-page appointments-page">
     <header className="topbar">
       <Link to="/owner" className="brand"><img src={logo} alt="Centro Kapper" /><span>Centro <b>Kapper</b></span></Link>
-      <Bell className="staff-bell" size={22} />
+      <Bell className="staff-bell" size={22} aria-hidden="true" />
     </header>
     <p className="eyebrow">CENTRO KAPPER · BEHEER</p>
     <div className="staff-heading">
@@ -155,7 +155,7 @@ export function StaffAppointments() {
       {[0, 1, 2, 3, 4, 5, 6].map((offset) => {
         const key = addCalendarDays(todayKey(), offset)
         const parts = getAmsterdamDateParts(new Date(`${key}T12:00:00Z`))
-        return <button key={key} className={date === key ? 'selected' : ''} onClick={() => setDate(key)}>
+        return <button type="button" key={key} aria-pressed={date === key} className={date === key ? 'selected' : ''} onClick={() => setDate(key)}>
           <span>{formatAmsterdamDate(new Date(`${key}T12:00:00Z`)).split(' ')[0]}</span><b>{parts.day}</b><small>{parts.month}</small>
         </button>
       })}
@@ -204,7 +204,7 @@ export function StaffAppointments() {
       onClose={() => setOverlap(null)}
       onConfirm={() => void confirmOverlap()}
     />}
-    <StaffBottomNav />
+    <OwnerBottomNav />
   </main>
 }
 
@@ -335,9 +335,9 @@ function SlotMutationModal({ title, submitLabel, services, initialServiceId, ini
   const toggle = (key: keyof OverrideFlags) => setOverrides((current) => ({ ...current, [key]: !current[key] }))
 
   return <div className="modal-backdrop">
-    <section className="appointment-form">
+    <section className="appointment-form" role="dialog" aria-modal="true" aria-labelledby="slot-mutation-title" tabIndex={-1} autoFocus onKeyDown={(event) => { if (event.key === 'Escape') onClose() }}>
       <div className="modal-heading">
-        <div><p className="eyebrow">CENTRO KAPPER</p><h2>{title}</h2></div>
+        <div><p className="eyebrow">CENTRO KAPPER</p><h2 id="slot-mutation-title">{title}</h2></div>
         <button onClick={onClose} aria-label="Sluiten"><X /></button>
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -373,9 +373,9 @@ function SlotMutationModal({ title, submitLabel, services, initialServiceId, ini
 
 function OverlapModal({ message, onClose, onConfirm }: { message: string; onClose: () => void; onConfirm: () => void }) {
   return <div className="modal-backdrop">
-    <section className="appointment-form">
+    <section className="appointment-form" role="dialog" aria-modal="true" aria-labelledby="overlap-warning-title" tabIndex={-1} autoFocus onKeyDown={(event) => { if (event.key === 'Escape') onClose() }}>
       <div className="modal-heading">
-        <div><p className="eyebrow">CENTRO KAPPER</p><h2>Overlapwaarschuwing</h2></div>
+        <div><p className="eyebrow">CENTRO KAPPER</p><h2 id="overlap-warning-title">Overlapwaarschuwing</h2></div>
         <button onClick={onClose} aria-label="Sluiten"><X /></button>
       </div>
       <p className="lead">{message}</p>

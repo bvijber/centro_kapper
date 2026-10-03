@@ -77,7 +77,7 @@ De buffer wordt toegepast tussen afspraken. Totale bezette tijd voor beschikbaar
 
 Er is een **vast bookinginterval van 15 minuten**.
 
-Beschikbare starttijden zijn gebonden aan 15-minutenintervallen, bijvoorbeeld 09:00, 09:15, 09:30 en 09:45. Dit interval geldt voor zowel customers als staff. Een beschikbare starttijd wordt bepaald op basis van:
+Beschikbare starttijden zijn gebonden aan 15-minutenintervallen, bijvoorbeeld 09:00, 09:15, 09:30 en 09:45. Dit interval geldt voor zowel customers als de eigenaar. Een beschikbare starttijd wordt bepaald op basis van:
 
 - openingstijden;
 - breaks;

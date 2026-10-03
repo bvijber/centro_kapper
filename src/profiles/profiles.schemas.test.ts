@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { customerProfileUpdateSchema, staffProfileUpdateSchema } from './profiles.schemas'
+import { customerProfileUpdateSchema, ownerProfileUpdateSchema } from './profiles.schemas'
 
 describe('profiles schemas', () => {
   it('accepts valid customer profile updates', () => {
@@ -13,9 +13,9 @@ describe('profiles schemas', () => {
     expect(customerProfileUpdateSchema.safeParse({ fullName: 'Daan' }).success).toBe(false)
   })
 
-  it('accepts and rejects staff profile updates at its boundaries', () => {
-    expect(staffProfileUpdateSchema.safeParse({ displayName: 'Sam Vermeer', phone: '+31 6 12345678' }).success).toBe(true)
-    expect(staffProfileUpdateSchema.safeParse({ displayName: '', phone: '+31 6 12345678' }).success).toBe(false)
-    expect(staffProfileUpdateSchema.safeParse({ displayName: 'Sam Vermeer', phone: '' }).success).toBe(false)
+  it('accepts and rejects owner profile updates at its boundaries', () => {
+    expect(ownerProfileUpdateSchema.safeParse({ displayName: 'Sam Vermeer', phone: '+31 6 12345678' }).success).toBe(true)
+    expect(ownerProfileUpdateSchema.safeParse({ displayName: '', phone: '+31 6 12345678' }).success).toBe(false)
+    expect(ownerProfileUpdateSchema.safeParse({ displayName: 'Sam Vermeer', phone: '' }).success).toBe(false)
   })
 })

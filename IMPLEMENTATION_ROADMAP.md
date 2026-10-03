@@ -40,7 +40,7 @@ De repository bevat momenteel:
 - geïmplementeerde auth-basis met Argon2id, database-backed sessions, CSRF, rate limiting, audit logging en authorization helpers;
 - Drizzle-schema’s en vier bestaande migrations;
 - schema-basis voor users, sessions, services, appointments, business profile, opening hours, breaks, queue, audit logs en rate limits;
-- bestaande TanStack routes, customer/staff layouts en mock/transitional UI;
+- bestaande TanStack routes, customer/owner layouts en mock/transitional UI;
 - lokale `AppointmentContext`, `WaitingListContext` en `src/data/mockData.ts`;
 - server-side appointment create/read/list persistence, settings-domainfuncties en Phase 4 availability/booking;
 - PostgreSQL advisory-locking en transactionele overlap-/concurrencybescherming voor appointment-creatie;
@@ -103,7 +103,7 @@ Production Verification
 
 - **Technical dependency:** server functions, repository/data access en databaseconstraints moeten bestaan voordat betrouwbare UI-integratie kan plaatsvinden.
 - **Business-rule dependency:** queue wacht op queue-mechanica; notification behavior wacht op notification events en preferences.
-- **Security dependency:** iedere mutation krijgt zelfstandig authentication, authorization, ownership, validation en relevante rate limiting voordat deze publiek of staff-facing wordt gebruikt.
+- **Security dependency:** iedere mutation krijgt zelfstandig authentication, authorization, ownership, validation en relevante rate limiting voordat deze publiek of owner-facing wordt gebruikt.
 - **Data-integrity dependency:** appointment snapshots en concurrencybescherming moeten onderdeel zijn van één consistente persistence-strategie.
 - **Platform dependency:** push delivery bouwt voort op PWA/service-worker-capability; productie-installatie en push moeten op iOS en Android worden gevalideerd.
 
@@ -205,7 +205,7 @@ Barber-configureerbare bedrijfsinstellingen persistent, valideerbaar en server-s
 - overlap behavior;
 - confirmation behavior (handmatig);
 - no-show behavior;
-- staff-authorized settings reads/writes;
+- owner-authorized settings reads/writes;
 - audit logging van relevante settingsmutaties.
 
 ### Buiten scope
@@ -246,7 +246,7 @@ De repository bevat settings schemas, authorization, service- en Server Function
 - constraints voor geldige waarden en ranges;
 - indexes alleen voor concrete settings/availability queries;
 - transactionele writes wanneer één settingsbewerking meerdere records raakt;
-- audit logging van gevoelige staff settings;
+- audit logging van gevoelige owner settings;
 - geen `slot_interval`-kolom;
 - geen `booking_horizon_days`-kolom;
 - buffer persistence;
@@ -260,12 +260,12 @@ Exacte kolommen en tabelnamen zijn implementatiedetails en worden pas gekozen te
 
 ### Security
 
-Settings mutations vereisen `requireStaff()` en server-side inputvalidatie. Client visibility is geen authorization. Gevoelige settings blijven server-side; staff ownership en auditcontext worden server-side bepaald.
+Settings mutations vereisen `requireOwner()` en server-side inputvalidatie. Client visibility is geen authorization. Gevoelige settings blijven server-side; owner ownership en auditcontext worden server-side bepaald.
 
 ### Tests
 
 - settings schema- en rangevalidatie;
-- staff/customer authorization;
+- owner/customer authorization;
 - settings persistence en transactionele updates;
 - whole-day block date behavior;
 - timezone-aware settings waar relevant;
@@ -278,11 +278,11 @@ Settings mutations vereisen `requireStaff()` en server-side inputvalidatie. Clie
 
 ### Validation
 
-Typecheck, build, lint indien beschikbaar, `npm run db:check`, migration inspection, relevante integration tests, authorization tests en staff UI smoke tests.
+Typecheck, build, lint indien beschikbaar, `npm run db:check`, migration inspection, relevante integration tests, authorization tests en owner UI smoke tests.
 
 ### Exit criteria
 
-De Phase 2-exitcriteria zijn behaald: de geïmplementeerde settings zijn persistent en server-side gevalideerd, staff-only writes zijn beveiligd en geaudit waar vereist, migrations zijn aanwezig en Phase 2B is uitgevoerd als onderdeel van deze fase.
+De Phase 2-exitcriteria zijn behaald: de geïmplementeerde settings zijn persistent en server-side gevalideerd, owner-only writes zijn beveiligd en geaudit waar vereist, migrations zijn aanwezig en Phase 2B is uitgevoerd als onderdeel van deze fase.
 
 ### Phase 2B — Booking settings persistence
 
@@ -298,7 +298,7 @@ Phase 2B betreft uitsluitend het persistent maken van de definitief bepaalde boo
 - no-show release behavior;
 - availability override behavior;
 - server-side validation;
-- staff authorization;
+- owner authorization;
 - audit logging.
 
 Phase 2B implementeert **NIET**:
@@ -359,7 +359,7 @@ Fase 1. Fase 2 voor settings die de appointmentworkflow nodig heeft. Concurrency
 
 ### Repository impact
 
-Waarschijnlijk relevant: `src/db/schema/appointments.ts`, `src/db/schema/services.ts`, `src/db/schema/users.ts`, `src/auth/authorization.ts`, `src/auth/auth.functions.ts`, `src/routes/_customer/`, `src/routes/_staff/`, `src/pages/Booking.tsx`, `src/pages/MyBookings.tsx`, `src/pages/StaffAppointments.tsx` en transitional `src/auth/AppointmentContext.tsx`.
+Waarschijnlijk relevant: `src/db/schema/appointments.ts`, `src/db/schema/services.ts`, `src/db/schema/users.ts`, `src/auth/authorization.ts`, `src/auth/auth.functions.ts`, `src/routes/_customer/`, `src/routes/_owner/`, `src/pages/Booking.tsx`, `src/pages/MyBookings.tsx`, `src/pages/OwnerAppointments.tsx` en transitional `src/auth/AppointmentContext.tsx`.
 
 ### Database impact
 
@@ -503,7 +503,7 @@ Eén coherent commit per afgeronde fase, alleen na expliciete opdracht.
 
 De volledige server-side appointment lifecycle en operationele barber/customer-acties aansluiten op de afgesproken business rules.
 
-**Status: IMPLEMENTED** — Phase 5 bevat server-side lifecyclemutaties (status update, modification, cancellation, cancellation requests), transactionele concurrency via de bestaande advisory-lockstrategie, een `cancellation_requests`-tabel met migration `0005_cold_cardiac.sql`, audit events voor lifecycleacties, server functions, en de customer/staff UI aangesloten op serverdata. `AppointmentContext` en appointment mock data zijn verwijderd.
+**Status: IMPLEMENTED** — Phase 5 bevat server-side lifecyclemutaties (status update, modification, cancellation, cancellation requests), transactionele concurrency via de bestaande advisory-lockstrategie, een `cancellation_requests`-tabel met migration `0005_cold_cardiac.sql`, audit events voor lifecycleacties, server functions, en de customer/owner UI aangesloten op serverdata. `AppointmentContext` en appointment mock data zijn verwijderd.
 
 ### Scope
 
@@ -543,7 +543,7 @@ Fase 3 en 4. Cancellation deadline, no-show behavior, confirmation behavior en o
 
 ### Repository impact
 
-Waarschijnlijk relevant: `src/routes/_customer/`, `src/routes/_staff/`, `src/pages/MyBookings.tsx`, `src/pages/StaffAppointments.tsx`, `src/components/BookingCard.tsx`, `src/auth/AppointmentContext.tsx`, auth helpers, appointment schema en auditcode.
+Waarschijnlijk relevant: `src/routes/_customer/`, `src/routes/_owner/`, `src/pages/MyBookings.tsx`, `src/pages/OwnerAppointments.tsx`, `src/components/BookingCard.tsx`, `src/auth/AppointmentContext.tsx`, auth helpers, appointment schema en auditcode.
 
 ### Database impact
 
@@ -551,7 +551,7 @@ Transactionele status- en wijzigingsworkflows, snapshotbehoud, lifecycle timesta
 
 ### Security
 
-Customers wijzigen of annuleren alleen eigen afspraken volgens de business rules. Staff-acties vereisen `requireStaff()`. Guest access is beperkt tot de betreffende bookingcontext. Iedere mutation controleert opnieuw status, ownership, availability en business rules.
+Customers wijzigen of annuleren alleen eigen afspraken volgens de business rules. Owner-acties vereisen `requireOwner()`. Guest access is beperkt tot de betreffende bookingcontext. Iedere mutation controleert opnieuw status, ownership, availability en business rules.
 
 ### Tests
 
@@ -566,14 +566,14 @@ Customers wijzigen of annuleren alleen eigen afspraken volgens de business rules
 
 ### Validation
 
-Typecheck, build, lint indien beschikbaar, database checks, integration/server-function tests, security review en browser smoke tests voor customer/staff flows.
+Typecheck, build, lint indien beschikbaar, database checks, integration/server-function tests, security review en browser smoke tests voor customer/owner flows.
 
 ### Exit criteria
 
 - alle besloten lifecycle-acties zijn server-side beschikbaar;
 - terminale appointments zijn niet via de normale flow wijzigbaar;
 - snapshots veranderen niet door actuele servicewijzigingen;
-- customer-, guest- en staffrechten zijn getest;
+- customer-, guest- en ownerrechten zijn getest;
 - cancellation, confirmation en no-show volgen uitsluitend vastgelegde business rules.
 
 ### Commit strategy
@@ -594,10 +594,10 @@ De bestaande design-leading UI geleidelijk aansluiten op echte serverdata zonder
 
 - `Booking` op server-derived services, availability en guest/customer flow aansluiten;
 - `MyBookings` op echte appointments, wijzigen, annuleren en requests aansluiten;
-- `StaffAppointments` op server lifecycle en settings aansluiten;
+- `OwnerAppointments` op server lifecycle en settings aansluiten;
 - `Queue` voorbereiden op de latere server queue-boundary;
-- `CustomerProfile` en `StaffProfile` op echte profile/settingsdata aansluiten waar relevant;
-- staff dashboard op server-derived metrics aansluiten waar de benodigde domeindata bestaat;
+- `CustomerProfile` en `OwnerProfile` op echte profile/settingsdata aansluiten waar relevant;
+- owner dashboard op server-derived metrics aansluiten waar de benodigde domeindata bestaat;
 - mock/transitional state per aangesloten domein verwijderen of vervangen;
 - loading, error, empty en success states behouden en verbeteren binnen bestaande stijl.
 
@@ -619,7 +619,7 @@ Geen nieuwe productbeslissingen. Open queue- en notificationbeslissingen mogen n
 
 ### Repository impact
 
-Waarschijnlijk relevant: `src/pages/Booking.tsx`, `src/pages/MyBookings.tsx`, `src/pages/StaffAppointments.tsx`, `src/pages/Queue.tsx`, `src/pages/StaffQueue.tsx`, `src/pages/CustomerProfile.tsx`, `src/pages/StaffProfile.tsx`, `src/pages/StaffDashboard.tsx`, `src/components/`, `src/auth/AppointmentContext.tsx`, `src/auth/WaitingListContext.tsx` en `src/data/mockData.ts`.
+Waarschijnlijk relevant: `src/pages/Booking.tsx`, `src/pages/MyBookings.tsx`, `src/pages/OwnerAppointments.tsx`, `src/pages/Queue.tsx`, `src/pages/OwnerQueue.tsx`, `src/pages/CustomerProfile.tsx`, `src/pages/OwnerProfile.tsx`, `src/pages/OwnerDashboard.tsx`, `src/components/`, `src/auth/AppointmentContext.tsx`, `src/auth/WaitingListContext.tsx` en `src/data/mockData.ts`.
 
 ### Database impact
 
@@ -631,7 +631,7 @@ UI guards en disabled buttons zijn geen security boundary. Server responses word
 
 ### Tests
 
-- server-driven booking/customer/staff flows;
+- server-driven booking/customer/owner flows;
 - loading/error/empty/success states;
 - ownership en unauthorized UI actions;
 - guest booking UX zonder verplicht account;
@@ -673,7 +673,7 @@ De queue van prototypegedrag naar een server-side domein brengen, maar pas nadat
 - relatie tussen queue en appointments;
 - server functions;
 - authorization, ownership en guest/customer identity;
-- UI integration van customer- en staffqueue;
+- UI integration van customer- en ownerqueue;
 - audit logging waar operationeel relevant.
 
 ### Buiten scope
@@ -702,7 +702,7 @@ Tot die tijd kunnen alleen persistence- en securityontwerp op capabilityniveau w
 
 ### Repository impact
 
-Waarschijnlijk relevant: `src/db/schema/waiting-list.ts`, `src/auth/WaitingListContext.tsx`, `src/pages/Queue.tsx`, `src/pages/StaffQueue.tsx`, queue routes, `src/db/schema/services.ts`, authorization en auditcode.
+Waarschijnlijk relevant: `src/db/schema/waiting-list.ts`, `src/auth/WaitingListContext.tsx`, `src/pages/Queue.tsx`, `src/pages/OwnerQueue.tsx`, queue routes, `src/db/schema/services.ts`, authorization en auditcode.
 
 ### Database impact
 
@@ -710,7 +710,7 @@ De bestaande `waiting_list_entries`-basis kan worden uitgebreid of aangesloten. 
 
 ### Security
 
-Customer/guest ownership, staff authorization, inputvalidatie, privacy van queuegegevens, rate limiting van publieke join-acties en audit logging worden server-side afgedwongen.
+Customer/guest ownership, owner authorization, inputvalidatie, privacy van queuegegevens, rate limiting van publieke join-acties en audit logging worden server-side afgedwongen.
 
 ### Tests
 
@@ -792,7 +792,7 @@ Geen verplichte databasewijziging voor installability. Offline persistence of ba
 
 ### Security
 
-HTTPS is vereist voor installatie en runtimeaannames. Service-worker scope, cache-inhoud en updategedrag mogen geen private customer/staffdata of secrets onveilig cachen. Authenticated data blijft server-authoritative.
+HTTPS is vereist voor installatie en runtimeaannames. Service-worker scope, cache-inhoud en updategedrag mogen geen private customer/ownerdata of secrets onveilig cachen. Authenticated data blijft server-authoritative.
 
 ### Tests
 

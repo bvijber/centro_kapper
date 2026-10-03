@@ -1,4 +1,5 @@
 import { CheckCircle2, Clock3, X } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import type { AppointmentDTO, BookableServiceDTO, CancellationRequestListItemDTO } from '../appointments/appointment.service.server'
 import { cancelAppointmentFn, getAvailabilityFn, listAppointmentsFn, listBookableServicesFn, listCancellationRequestsFn, modifyAppointmentFn, requestCancellationFn, withdrawCancellationRequestFn } from '../appointments/appointment.functions'
@@ -91,14 +92,14 @@ export function MyBookings() {
   return <main className="page shell bookings-page">
     <CustomerHeader />
     <div className="hero-copy"><p className="eyebrow">CENTRO KAPPER</p><h1>Mijn<br /><em>afspraken.</em></h1><p className="lead">Beheer al je Centro Kapper afspraken op één plek.</p></div>
-    <div className="tabs">
-      <button className={tab === 'upcoming' ? 'active' : ''} onClick={() => setTab('upcoming')}><Clock3 size={17} /> Aankomend</button>
-      <button className={tab === 'past' ? 'active' : ''} onClick={() => setTab('past')}><CheckCircle2 size={17} /> Voltooid</button>
+    <div className="tabs" role="tablist" aria-label="Afspraken filteren">
+      <button type="button" role="tab" aria-selected={tab === 'upcoming'} className={tab === 'upcoming' ? 'active' : ''} onClick={() => setTab('upcoming')}><Clock3 size={17} aria-hidden="true" /> Aankomend</button>
+      <button type="button" role="tab" aria-selected={tab === 'past'} className={tab === 'past' ? 'active' : ''} onClick={() => setTab('past')}><CheckCircle2 size={17} aria-hidden="true" /> Voltooid</button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {success && <p className="success-message" role="status">{success}</p>}
     {loading ? <p className="lead">Bezig met laden...</p> : null}
-    {!loading && visible.length === 0 ? <p className="lead">Geen afspraken gevonden.</p> : null}
+    {!loading && visible.length === 0 ? <div className="empty-state"><p className="eyebrow">GEEN AFSPRAKEN</p><p>Er zijn geen {tab === 'upcoming' ? 'aankomende' : 'voltooide'} afspraken om te tonen.</p><Link className="secondary-action" to="/booking">Afspraak maken</Link></div> : null}
     {visible.map((appointment) => (
       <BookingCard key={appointment.id} appointment={appointment}>
         {canManage(appointment) && (
@@ -177,9 +178,9 @@ function ModifyModal({ appointment, onClose, onSaved }: { appointment: Appointme
   }
 
   return <div className="modal-backdrop">
-    <section className="appointment-form">
+    <section className="appointment-form" role="dialog" aria-modal="true" aria-labelledby="modify-appointment-title" tabIndex={-1} autoFocus onKeyDown={(event) => { if (event.key === 'Escape') onClose() }}>
       <div className="modal-heading">
-        <div><p className="eyebrow">CENTRO KAPPER</p><h2>Afspraak wijzigen</h2></div>
+        <div><p className="eyebrow">CENTRO KAPPER</p><h2 id="modify-appointment-title">Afspraak wijzigen</h2></div>
         <button onClick={onClose} aria-label="Sluiten"><X /></button>
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}
@@ -192,13 +193,13 @@ function ModifyModal({ appointment, onClose, onSaved }: { appointment: Appointme
         <label className="date-picker">Andere datum<input type="date" min={today} value={date} onChange={(event) => setDate(event.target.value)} /></label>
         {dates.map((value) => {
           const parts = getAmsterdamDateParts(new Date(`${value}T12:00:00Z`))
-          return <button type="button" key={value} className={date === value ? 'selected' : ''} onClick={() => setDate(value)}>
+          return <button type="button" key={value} aria-pressed={date === value} className={date === value ? 'selected' : ''} onClick={() => setDate(value)}>
             <span>{formatAmsterdamDate(new Date(`${value}T12:00:00Z`)).split(' ')[0]}</span><b>{parts.day}</b><small>{parts.month}</small>
           </button>
         })}
       </div>
       {loadingSlots ? <p className="lead">Beschikbaarheid laden...</p> : slots.length === 0 ? <p className="lead">Geen beschikbare tijden op deze datum.</p> : <div className="times">
-        {slots.map((slot) => <button type="button" key={slot.startsAt} className={time === slot.time ? 'chosen' : ''} onClick={() => setTime(slot.time)}>{slot.time}</button>)}
+        {slots.map((slot) => <button type="button" key={slot.startsAt} aria-pressed={time === slot.time} className={time === slot.time ? 'chosen' : ''} onClick={() => setTime(slot.time)}>{slot.time}</button>)}
       </div>}
       <div className="modal-actions">
         <button className="cancel-modal" onClick={onClose}>Terug</button>
@@ -219,7 +220,7 @@ function RequestModal({ appointment, onClose, onSaved }: { appointment: Appointm
     setSubmitting(true)
     try {
       await requestCancellationFn({ data: { appointmentId: appointment.id, reason: reason.trim() } })
-      onSaved('Je annuleringsverzoek is ingediend. De barber beoordeelt dit.')
+      onSaved('Je annuleringsverzoek is ingediend. De eigenaar beoordeelt dit.')
     } catch (caught) {
       setError(errorMessage(caught))
     } finally {
@@ -228,9 +229,9 @@ function RequestModal({ appointment, onClose, onSaved }: { appointment: Appointm
   }
 
   return <div className="modal-backdrop">
-    <section className="appointment-form">
+    <section className="appointment-form" role="dialog" aria-modal="true" aria-labelledby="cancellation-request-title" tabIndex={-1} autoFocus onKeyDown={(event) => { if (event.key === 'Escape') onClose() }}>
       <div className="modal-heading">
-        <div><p className="eyebrow">CENTRO KAPPER</p><h2>Annuleringsverzoek</h2></div>
+        <div><p className="eyebrow">CENTRO KAPPER</p><h2 id="cancellation-request-title">Annuleringsverzoek</h2></div>
         <button onClick={onClose} aria-label="Sluiten"><X /></button>
       </div>
       {error && <p className="form-error" role="alert">{error}</p>}

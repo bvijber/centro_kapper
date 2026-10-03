@@ -89,7 +89,7 @@ export function Booking() {
       if (user) {
         await navigate({ to: '/bookings' })
       } else {
-        setSuccess('Je aanvraag is ontvangen. De barber bevestigt de afspraak handmatig.')
+        setSuccess('Je aanvraag is ontvangen. De eigenaar bevestigt de afspraak handmatig.')
         setTime('')
       }
     } catch (caught) {
@@ -108,17 +108,17 @@ export function Booking() {
   return <main className="page booking-page">
     <header className="subheader"><Link to="/home"><ArrowLeft /></Link><h2>AFSPRAAK BOEKEN</h2></header>
     <Card className="fixed-business"><span className="eyebrow">JE BOEKT BIJ</span><strong>Centro Kapper</strong><small>Nieuwe Markt 12, Breda</small></Card>
-    <Card className="barber-profile"><div className="avatar">SV</div><div><h3>Sam Vermeer</h3><p>Barber & eigenaar</p><span><Star size={15} fill="currentColor" /> 4.9 (86 reviews)</span></div></Card>
+    <Card className="barber-profile"><div className="avatar">SV</div><div><h3>Sam Vermeer</h3><p>Eigenaar</p><span><Star size={15} fill="currentColor" /> 4.9 (86 reviews)</span></div></Card>
     {error && <p className="form-error" role="alert">{error}</p>}
     {success && <p className="success-message" role="status">{success}</p>}
     <p className="eyebrow">KIES EEN SERVICE</p>
-    {loadingServices ? <p>Bezig met laden...</p> : <div className="services">{services.map((service) => <ServiceCard key={service.id} service={serviceCard(service)} selected={selectedServiceId === service.id} onClick={() => setSelectedServiceId(service.id)} />)}</div>}
+     {loadingServices ? <p className="lead">Bezig met laden...</p> : services.length === 0 ? <div className="empty-state"><p className="eyebrow">GEEN SERVICES</p><p>Er zijn momenteel geen services beschikbaar om te boeken.</p></div> : <div className="services">{services.map((service) => <ServiceCard key={service.id} service={serviceCard(service)} selected={selectedServiceId === service.id} onClick={() => setSelectedServiceId(service.id)} />)}</div>}
     <div className="booking-sticky">
     <p className="eyebrow">KIES EEN DATUM</p>
     <label className="date-picker">Andere datum<input type="date" min={todayKey} value={date} onChange={(event) => setDate(event.target.value)} /></label>
-    <div className="dates">{dates.map((value) => { const parts = getAmsterdamDateParts(new Date(`${value}T12:00:00Z`)); const past = isPastDate(value); return <button type="button" className={`${date === value ? 'chosen' : ''}${past ? ' disabled' : ''}`} onClick={() => { if (!past) setDate(value) }} key={value} disabled={past}><span>{formatAmsterdamDate(new Date(`${value}T12:00:00Z`)).split(' ')[0]}</span><b>{parts.day}</b><small>{parts.month}</small></button> })}</div>
+     <div className="dates">{dates.map((value) => { const parts = getAmsterdamDateParts(new Date(`${value}T12:00:00Z`)); const past = isPastDate(value); return <button type="button" aria-pressed={date === value} className={`${date === value ? 'chosen' : ''}${past ? ' disabled' : ''}`} onClick={() => { if (!past) setDate(value) }} key={value} disabled={past}><span>{formatAmsterdamDate(new Date(`${value}T12:00:00Z`)).split(' ')[0]}</span><b>{parts.day}</b><small>{parts.month}</small></button> })}</div>
     <p className="eyebrow">KIES EEN TIJD</p>
-    {loadingSlots ? <p>Beschikbaarheid laden...</p> : slots.length === 0 ? <p>Geen beschikbare tijden op deze datum.</p> : groupedSlots.map((group) => <div className="time-group" key={group.label}><span className="time-group-label">{group.label}</span><div className="times">{group.slots.map((slot) => <button type="button" className={time === slot.time ? 'chosen' : ''} onClick={() => setTime(slot.time)} key={slot.startsAt}>{slot.time}</button>)}</div></div>)}
+     {loadingSlots ? <p className="lead">Beschikbaarheid laden...</p> : slots.length === 0 ? <div className="empty-state"><p className="eyebrow">GEEN BESCHIKBARE TIJDEN</p><p>Er zijn geen beschikbare tijden op deze datum.</p></div> : groupedSlots.map((group) => <div className="time-group" key={group.label}><span className="time-group-label">{group.label}</span><div className="times">{group.slots.map((slot) => <button type="button" aria-pressed={time === slot.time} className={time === slot.time ? 'chosen' : ''} onClick={() => setTime(slot.time)} key={slot.startsAt}>{slot.time}</button>)}</div></div>)}
     </div>
     {!user && <Card className="booking-guest-form"><p className="eyebrow">JOUW GEGEVENS</p><label>Naam *<input value={guestName} onChange={(event) => setGuestName(event.target.value)} /></label><label>Telefoonnummer *<input value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} type="tel" /></label><label>E-mailadres<input value={guestEmail} onChange={(event) => setGuestEmail(event.target.value)} type="email" /></label></Card>}
     <Button onClick={() => void submit()} disabled={submitting}>{submitting ? 'Bezig...' : 'Bevestig afspraak'} <ChevronRight size={18} /></Button>

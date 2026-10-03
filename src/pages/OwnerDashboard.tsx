@@ -3,10 +3,10 @@ import { Link } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
 import { Card } from '../components/Card'
-import { getStaffDashboardFn } from '../dashboard/dashboard.functions'
-import type { StaffDashboardDTO } from '../dashboard/dashboard.service.server'
+import { getOwnerDashboardFn } from '../dashboard/dashboard.functions'
+import type { OwnerDashboardDTO } from '../dashboard/dashboard.service.server'
 import logo from '../assets/logo_centro_kapper.jpeg'
-import { StaffBottomNav } from '../components/StaffBottomNav'
+import { OwnerBottomNav } from '../components/OwnerBottomNav'
 import { publicErrorMessage } from '../components/publicError'
 
 function errorMessage(caught: unknown): string {
@@ -15,14 +15,14 @@ function errorMessage(caught: unknown): string {
 
 const euro = (cents: number) => `€ ${(cents / 100).toFixed(2).replace('.', ',')}`
 
-export function StaffDashboard() {
+export function OwnerDashboard() {
   const { user } = useAuth()
-  const [metrics, setMetrics] = useState<StaffDashboardDTO | null>(null)
+  const [metrics, setMetrics] = useState<OwnerDashboardDTO | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    void getStaffDashboardFn()
+    void getOwnerDashboardFn()
       .then(setMetrics)
       .catch((caught) => setError(errorMessage(caught)))
       .finally(() => setLoading(false))
@@ -52,13 +52,12 @@ export function StaffDashboard() {
           <Card><CalendarDays /><span>Vandaag</span><strong>{metrics.appointmentsToday}</strong><small>afspraken</small></Card>
           <Card><CheckCircle2 /><span>Voltooid</span><strong>{metrics.completedToday}</strong><small>vandaag</small></Card>
           <Card><Inbox /><span>Verzoeken</span><strong>{metrics.pendingCancellationRequests}</strong><small>openstaand</small></Card>
-          <Card><UsersRound /><span>Eigenaar</span><strong>{metrics.activeStaff}</strong><small>beheerder</small></Card>
         </div>
       </>
     )}
     {!loading && !error && metrics && (
        <Link className="staff-link" to="/owner/queue"><Card><UsersRound /><div><b>Wachtrij beheren</b><small>Beheer de actieve wachtrij</small></div><ChevronRight /></Card></Link>
     )}
-    <StaffBottomNav />
+    <OwnerBottomNav />
   </main>
 }

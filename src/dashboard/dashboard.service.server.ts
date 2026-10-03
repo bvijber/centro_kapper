@@ -3,15 +3,13 @@ import { and, count, eq, gte, lt, sql } from 'drizzle-orm'
 import { db } from '../db/client.server'
 import { appointments } from '../db/schema/appointments'
 import { cancellationRequests } from '../db/schema/cancellation-requests'
-import { staffProfiles } from '../db/schema/profiles'
 import { formatAmsterdamDateKey, getAmsterdamDayBounds, getAmsterdamDateParts, parseAmsterdamLocal } from '../timezone'
 
-export type StaffDashboardDTO = {
+export type OwnerDashboardDTO = {
   revenueThisMonthCents: number
   revenueDeltaPercent: number | null
   appointmentsToday: number
   completedToday: number
-  activeStaff: number
   pendingCancellationRequests: number
 }
 
@@ -47,13 +45,13 @@ async function revenueBetween(start: Date, end: Date): Promise<number> {
   return Number(row?.total ?? 0)
 }
 
-export async function getStaffDashboard(): Promise<StaffDashboardDTO> {
+export async function getOwnerDashboard(): Promise<OwnerDashboardDTO> {
   try {
     const current = monthBounds(0)
     const previous = monthBounds(-1)
     const todayBounds = getAmsterdamDayBounds(formatAmsterdamDateKey(new Date()))
 
-    const [revenueThisMonthCents, revenueLastMonthCents, appointmentsToday, completedToday, activeStaff, pendingCancellationRequests] = await Promise.all([
+    const [revenueThisMonthCents, revenueLastMonthCents, appointmentsToday, completedToday, pendingCancellationRequests] = await Promise.all([
       revenueBetween(current.start, current.end),
       revenueBetween(previous.start, previous.end),
       todayBounds
@@ -62,7 +60,6 @@ export async function getStaffDashboard(): Promise<StaffDashboardDTO> {
       todayBounds
         ? db.select({ value: count() }).from(appointments).where(and(eq(appointments.status, 'completed'), gte(appointments.completedAt, todayBounds.start), lt(appointments.completedAt, todayBounds.end))).then((rows) => rows[0]?.value ?? 0)
         : Promise.resolve(0),
-      db.select({ value: count() }).from(staffProfiles).where(eq(staffProfiles.active, true)).then((rows) => rows[0]?.value ?? 0),
       db.select({ value: count() }).from(cancellationRequests).where(eq(cancellationRequests.status, 'pending')).then((rows) => rows[0]?.value ?? 0),
     ])
 
@@ -75,7 +72,6 @@ export async function getStaffDashboard(): Promise<StaffDashboardDTO> {
       revenueDeltaPercent,
       appointmentsToday,
       completedToday,
-      activeStaff,
       pendingCancellationRequests,
     }
   } catch {

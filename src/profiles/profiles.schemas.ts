@@ -7,10 +7,10 @@ export const customerProfileUpdateSchema = z.object({
   phone: phoneSchema,
 })
 
-export const staffProfileUpdateSchema = z.object({
+export const ownerProfileUpdateSchema = z.object({
   displayName: z.string().trim().min(2).max(100),
   phone: phoneSchema,
 })
 
 export type CustomerProfileUpdateInput = z.infer<typeof customerProfileUpdateSchema>
-export type StaffProfileUpdateInput = z.infer<typeof staffProfileUpdateSchema>
+export type OwnerProfileUpdateInput = z.infer<typeof ownerProfileUpdateSchema>

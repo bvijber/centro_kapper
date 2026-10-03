@@ -1,13 +1,12 @@
 import { db } from './client.server'
 import { bookingSettings, businessProfile, openingHours } from './schema/business'
 import { services } from './schema/services'
-import { staffProfiles } from './schema/profiles'
-import { users } from './schema/users'
 
 // DEVELOPMENT SEED DATA ONLY.
 // The address, owner name, phone number, hours, services, and prices below are
 // neutral placeholders and must be replaced with confirmed data before production.
-const placeholderStaffId = '00000000-0000-4000-8000-000000000001'
+// The owner account is intentionally not seeded: the owner is created once through
+// `npm run auth:create-owner` and the database enforces a single owner account.
 
 const developmentServices = [
   { name: 'Knippen', description: 'Ontwikkelservice voor knippen en styling.', durationMinutes: 35, priceCents: 3000 },
@@ -34,20 +33,6 @@ async function seed() {
   ).onConflictDoNothing()
 
   await db.insert(bookingSettings).values({ id: 1 }).onConflictDoNothing()
-
-  await db.insert(users).values({
-      id: placeholderStaffId,
-      email: 'staff.placeholder@example.test',
-      passwordHash: null,
-      role: 'owner',
-  }).onConflictDoNothing()
-
-  await db.insert(staffProfiles).values({
-      userId: placeholderStaffId,
-      displayName: 'Medewerker (ontwikkeling)',
-      phone: '+31 00 000 00 01',
-      active: false,
-  }).onConflictDoNothing()
 
   await db.insert(services).values(developmentServices).onConflictDoNothing()
 }

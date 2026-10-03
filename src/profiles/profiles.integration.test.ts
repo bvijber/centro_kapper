@@ -39,35 +39,30 @@ describe.skipIf(!databaseAvailable)('profiles integration', () => {
     }
   })
 
-  it('reads and updates the own staff profile', async () => {
+  it('reads and updates the own owner profile and restores fixture data', async () => {
     const { db } = await import('../db/client.server')
-    const { eq } = await import('drizzle-orm')
-    const { auditLogs, staffProfiles, users } = await import('../db/schema')
-    const { getStaffProfile, updateStaffProfile } = await import('./profiles.service.server')
+    const { and, eq } = await import('drizzle-orm')
+    const { auditLogs, ownerProfiles, users } = await import('../db/schema')
+    const { getOwnerProfile, updateOwnerProfile } = await import('./profiles.service.server')
+    const { ensureActiveOwnerFixture, removeOwnerFixture } = await import('../../tests/helpers/owner-fixture')
 
-    const [existingBarber] = await db.select({ id: users.id }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id)).where(eq(staffProfiles.active, true)).limit(1)
-    const staffId = existingBarber?.id ?? randomUUID()
-    const created = !existingBarber
-    if (created) {
-      await db.insert(users).values({ id: staffId, email: `profile-staff-${randomUUID()}@example.com`, role: 'staff' })
-      await db.insert(staffProfiles).values({ userId: staffId, displayName: 'Sam Vermeer', phone: '0612345678', active: true })
-    }
+    const ownerFixture = await ensureActiveOwnerFixture('profile-owner')
+    const ownerId = ownerFixture.userId
+    const original = await getOwnerProfile(ownerId)
 
     try {
-      const profile = await getStaffProfile(staffId)
-      expect(profile.userId).toBe(staffId)
+      const profile = await getOwnerProfile(ownerId)
+      expect(profile.userId).toBe(ownerId)
 
-      const updated = await updateStaffProfile(staffId, { displayName: 'Sam V. Vermeer', phone: '0687654321' })
-      expect(updated).toMatchObject({ userId: staffId, displayName: 'Sam V. Vermeer', phone: '0687654321' })
+      const updated = await updateOwnerProfile(ownerId, { displayName: 'Sam V. Vermeer', phone: '0687654321' })
+      expect(updated).toMatchObject({ userId: ownerId, displayName: 'Sam V. Vermeer', phone: '0687654321' })
 
-      const [audit] = await db.select().from(auditLogs).where(eq(auditLogs.entityId, staffId)).limit(1)
-      expect(audit?.action).toBe('profile.staff.update')
+      const [audit] = await db.select().from(auditLogs).where(and(eq(auditLogs.entityId, ownerId), eq(auditLogs.action, 'profile.owner.update'))).limit(1)
+      expect(audit?.action).toBe('profile.owner.update')
     } finally {
-      await db.delete(auditLogs).where(eq(auditLogs.entityId, staffId))
-      if (created) {
-        await db.delete(staffProfiles).where(eq(staffProfiles.userId, staffId))
-        await db.delete(users).where(eq(users.id, staffId))
-      }
+      await updateOwnerProfile(ownerId, { displayName: original.displayName, phone: original.phone })
+      await db.delete(auditLogs).where(eq(auditLogs.entityId, ownerId))
+      await removeOwnerFixture(ownerFixture)
     }
   })
 })

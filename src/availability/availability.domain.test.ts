@@ -34,7 +34,7 @@ describe('availability domain', () => {
     expect(calculateAvailableSlots(base({ wholeDayBlocked: true, overrides: { openingHours: false, break: false, wholeDayBlock: true } }))).not.toEqual([])
   })
 
-  it('only overrides the availability boundary explicitly requested by staff', () => {
+  it('only overrides the availability boundary explicitly requested by the owner', () => {
     const input = base({ overrides: { openingHours: true, break: false, wholeDayBlock: false } })
     expect(isSlotAvailable(input, parseAmsterdamLocal('2026-09-14', '18:00') as Date)).toBe(true)
     const breakPeriod = [{ startsAt: parseAmsterdamLocal('2026-09-14', '18:00') as Date, endsAt: parseAmsterdamLocal('2026-09-14', '19:00') as Date }]

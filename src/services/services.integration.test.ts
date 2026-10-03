@@ -7,18 +7,11 @@ describe.skipIf(!databaseAvailable)('services integration', () => {
   it('creates, updates, deactivates, activates and archives services transactionally', async () => {
     const { db } = await import('../db/client.server')
     const { eq, inArray } = await import('drizzle-orm')
-    const { auditLogs, bookingSettings, services, users, staffProfiles } = await import('../db/schema')
+    const { auditLogs, bookingSettings, services, users, ownerProfiles } = await import('../db/schema')
     const { createService, updateService, deactivateService, activateService, archiveService, listServices } = await import('./services.service.server')
 
-    const staffId = randomUUID()
-    const staffEmail = `services-staff-${randomUUID()}@example.com`
-
-    const [existingBarber] = await db.select({ id: users.id }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id)).where(eq(staffProfiles.active, true)).limit(1)
-    const fixtureStaffId = existingBarber?.id ?? staffId
-    if (!existingBarber) {
-      await db.insert(users).values({ id: staffId, email: staffEmail, role: 'staff' })
-      await db.insert(staffProfiles).values({ userId: staffId, displayName: 'Services Test Barber', phone: '0612345678', active: true })
-    }
+    const { ensureActiveOwnerFixture, removeOwnerFixture } = await import('../../tests/helpers/owner-fixture')
+    const ownerFixture = await ensureActiveOwnerFixture('services')
     await db.insert(bookingSettings).values({ id: 1 }).onConflictDoNothing()
 
     const serviceIds: string[] = []
@@ -52,29 +45,22 @@ describe.skipIf(!databaseAvailable)('services integration', () => {
         await db.delete(auditLogs).where(inArray(auditLogs.entityId, serviceIds))
         await db.delete(services).where(inArray(services.id, serviceIds))
       }
-      if (!existingBarber) {
-        await db.delete(staffProfiles).where(eq(staffProfiles.userId, fixtureStaffId))
-        await db.delete(users).where(eq(users.id, fixtureStaffId))
-      }
+      await removeOwnerFixture(ownerFixture)
     }
   })
 
   it('keeps historical appointment snapshots intact after service updates', async () => {
     const { db } = await import('../db/client.server')
     const { and, eq, inArray } = await import('drizzle-orm')
-    const { appointments, auditLogs, bookingSettings, services, users, staffProfiles } = await import('../db/schema')
+    const { appointments, auditLogs, bookingSettings, services, users, ownerProfiles } = await import('../db/schema')
     const { createService, updateService, archiveService } = await import('./services.service.server')
 
-    const staffId = randomUUID()
+    const { ensureActiveOwnerFixture, removeOwnerFixture } = await import('../../tests/helpers/owner-fixture')
     const serviceId = randomUUID()
     const appointmentId = randomUUID()
 
-    const [existingBarber] = await db.select({ id: users.id }).from(users).innerJoin(staffProfiles, eq(staffProfiles.userId, users.id)).where(eq(staffProfiles.active, true)).limit(1)
-    const fixtureStaffId = existingBarber?.id ?? staffId
-    if (!existingBarber) {
-      await db.insert(users).values({ id: staffId, email: `services-snap-${randomUUID()}@example.com`, role: 'staff' })
-      await db.insert(staffProfiles).values({ userId: staffId, displayName: 'Services Snapshot Barber', phone: '0612345678', active: true })
-    }
+    const ownerFixture = await ensureActiveOwnerFixture('services-snapshot')
+    const fixtureOwnerId = ownerFixture.userId
     await db.insert(bookingSettings).values({ id: 1 }).onConflictDoNothing()
     await db.insert(services).values({ id: serviceId, name: 'Snapshot Service', description: 'Snapshot fixture', durationMinutes: 30, priceCents: 1000, active: true })
 
@@ -84,7 +70,7 @@ describe.skipIf(!databaseAvailable)('services integration', () => {
       customerUserId: null,
       guestName: 'Snapshot Guest',
       guestPhone: '0612345678',
-      barberUserId: fixtureStaffId,
+      barberUserId: fixtureOwnerId,
       serviceId,
       serviceNameAtBooking: 'Snapshot Service',
       servicePriceCentsAtBooking: 1000,
@@ -109,10 +95,7 @@ describe.skipIf(!databaseAvailable)('services integration', () => {
       await db.delete(auditLogs).where(and(eq(auditLogs.action, 'service.archive'), eq(auditLogs.entityId, serviceId)))
       await db.delete(appointments).where(eq(appointments.id, appointmentId))
       await db.delete(services).where(eq(services.id, serviceId))
-      if (!existingBarber) {
-        await db.delete(staffProfiles).where(eq(staffProfiles.userId, fixtureStaffId))
-        await db.delete(users).where(eq(users.id, fixtureStaffId))
-      }
+      await removeOwnerFixture(ownerFixture)
     }
   })
 })

@@ -10,6 +10,8 @@
 
 Nieuwe productieaccounts gebruiken `owner` of `customer`. Oude staff-rijen worden via de owner-backfillmigration geconverteerd. `owner_profiles` is de actuele persistence-tabel; staff-termen in historische migrations zijn legacy.
 
+De eigenaar is een database-afgedwongen singleton: `users_single_owner_idx` is een partiele unieke index op `users(role) WHERE role = 'owner'` (migration `0010_single_owner.sql`). Provisioning (`createInitialOwnerAccount()` / `scripts/create-owner.ts`) controleert dit binnen dezelfde transactie en faalt met `SETUP_FAILED` wanneer er al een eigenaar bestaat. Concurrente aanmaakpogingen worden door de index afgewezen. `src/db/seed.ts` maakt bewust geen eigenaar aan.
+
 ---
 
 ## 1. Doel en status
@@ -163,6 +165,10 @@ Deze migration maakt de singleton `booking_settings`-tabel aan met buffer, cance
 
 Deze migration breidt appointments uit met buffer snapshot, no-show slot release, barber override metadata en een nullable barber foreign key voor historische compatibiliteit. Het oude `source`-veld en `appointment_source`-enum worden verwijderd. Bestaande appointments krijgen bij backfill de actuele booking buffer, met `0` als fallback wanneer de settingsrij ontbreekt.
 
+### `drizzle/0007_tense_spectrum.sql`, `0008_owner_backfill.sql`, `0009_owner_profiles.sql`, `0010_single_owner.sql`
+
+Deze owner-only reeks voegt de `owner`-rol toe aan `user_role`, converteert bestaande `staff`-rijen naar `owner`, hernoemt `staff_profiles` naar `owner_profiles` en legt de single-owner garantie vast met `users_single_owner_idx`. De `staff`-waarde blijft in het enum staan als historische compatibiliteit en biedt geen runtime-authorisatie. De unieke index faalt expliciet wanneer er meerdere owner-accounts bestaan, zodat de invariant niet stil wordt overschreven.
+
 ### Metadata
 
 `drizzle/meta/0000_snapshot.json`, `drizzle/meta/0001_snapshot.json` en `drizzle/meta/_journal.json` zijn de bestaande Drizzle metadata/snapshots. Zij horen bij de migrations en mogen niet handmatig worden aangepast om schemawijzigingen te simuleren.
@@ -184,7 +190,7 @@ De relevante entiteiten gebruiken UUID primary keys met `defaultRandom()`, verta
 - break periods;
 - waiting-list entries.
 
-`customer_profiles` en `staff_profiles` gebruiken `user_id` als one-to-one primary key en foreign key. `business_profile` is de uitzondering: die gebruikt een integer ID met default `1` en een singleton check.
+`customer_profiles` en `owner_profiles` gebruiken `user_id` als one-to-one primary key en foreign key. `business_profile` is de uitzondering: die gebruikt een integer ID met default `1` en een singleton check.
 
 Nieuwe relevante entiteiten behouden het UUID-patroon. Sequentiële IDs worden niet toegevoegd zonder expliciete technische reden. Foreign keys moeten type-consistent zijn met de primary key waarnaar zij verwijzen.
 
@@ -195,7 +201,7 @@ Nieuwe relevante entiteiten behouden het UUID-patroon. Sequentiële IDs worden n
 **CURRENT**
 
 - `sessions.user_id` verwijst naar `users.id` met `ON DELETE CASCADE`.
-- `customer_profiles.user_id` en `staff_profiles.user_id` verwijzen naar `users.id` met `ON DELETE CASCADE`.
+- `customer_profiles.user_id` en `owner_profiles.user_id` verwijzen naar `users.id` met `ON DELETE CASCADE`.
 - `appointments.customer_user_id` verwijst nullable naar `users.id` met `ON DELETE SET NULL`.
 - `appointments.barber_user_id` verwijst nullable naar `users.id` met `ON DELETE SET NULL`.
 - `appointments.service_id` verwijst verplicht naar `services.id` met `ON DELETE RESTRICT`.
@@ -675,14 +681,15 @@ Geen laag neemt stilzwijgend de verantwoordelijkheid van een andere laag over. D
 
 - business profile;
 - opening hours;
-- een inactive placeholder staff user/profile;
 - drie development services.
+
+Het script maakt bewust geen owner- of placeholder-owneraccount aan: de eigenaar wordt éénmalig via `npm run auth:create-owner` aangemaakt en mag niet worden overschreven door seed data.
 
 Het script gebruikt `onConflictDoNothing()` en maakt geen bruikbaar production password of production user aan. Er is geen npm seedscript in `package.json` vastgesteld.
 
 **DATABASE RULE**
 
-Seed data is ontwikkel-/testdata tenzij expliciet anders bepaald. Productiegegevens mogen niet afhankelijk zijn van `mockData.ts` of development seed placeholders. Placeholder-adres, staffgegevens, opening hours, services en prijzen moeten vóór productie worden vervangen door bevestigde data.
+Seed data is ontwikkel-/testdata tenzij expliciet anders bepaald. Productiegegevens mogen niet afhankelijk zijn van `mockData.ts` of development seed placeholders. Placeholder-adres, opening hours, services en prijzen moeten vóór productie worden vervangen door bevestigde data; de eigenaar is geen seedplaceholder maar een aangemaakt account.
 
 ---
 

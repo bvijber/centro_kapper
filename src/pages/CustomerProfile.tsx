@@ -22,6 +22,7 @@ export function CustomerProfile() {
   const [phone, setPhone] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
@@ -43,6 +44,7 @@ export function CustomerProfile() {
   useEffect(() => { void load() }, [])
 
   const logout = async () => {
+    setLoggingOut(true)
     await signOut()
     await navigate({ to: '/login', replace: true })
   }
@@ -82,7 +84,7 @@ export function CustomerProfile() {
         </Card>
       </>
     )}
-    <button className="logout-button" onClick={() => void logout()}><LogOut size={17} /> Uitloggen</button>
+    <button className="logout-button" onClick={() => void logout()} disabled={loggingOut}><LogOut size={17} aria-hidden="true" /> {loggingOut ? 'Bezig...' : 'Uitloggen'}</button>
     <BottomNav />
   </main>
 }

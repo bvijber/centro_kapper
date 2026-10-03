@@ -197,7 +197,7 @@ OpenCode vertrouwt nooit op:
 - client-side availability;
 - client-side status validation.
 
-De bestaande helpers `requireAuthenticatedUser()`, `requireCustomer()`, `requireStaff()` en `requireOwnership()` worden hergebruikt wanneer passend. Nieuwe security-critical patterns worden niet ad hoc naast deze basis geïntroduceerd.
+De bestaande helpers `requireAuthenticatedUser()`, `requireCustomer()`, `requireOwner()` en `requireOwnership()` worden hergebruikt wanneer passend. Nieuwe security-critical patterns worden niet ad hoc naast deze basis geïntroduceerd.
 
 ---
 
@@ -265,7 +265,7 @@ Respecteer:
 - bestaande spacing;
 - DM Sans/Space Grotesk-hiërarchie;
 - bestaande components;
-- bestaande customer/staff navigation;
+- bestaande customer/owner navigation;
 - bestaande logo en assets;
 - bestaande visual hierarchy;
 - `extend, don't redesign`.
@@ -359,7 +359,7 @@ Voor iedere feature met gebruikersdata, authenticatie, autorisatie, booking of d
 - kan een unauthenticated user het endpoint aanroepen?
 - kan een customer data van een andere customer lezen?
 - kan een customer een andere appointment wijzigen?
-- kan een customer staff-only acties uitvoeren?
+- kan een customer owner-only acties uitvoeren?
 - worden status transitions server-side gecontroleerd?
 - kan input business rules omzeilen?
 - is concurrency veilig?

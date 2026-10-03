@@ -1,4 +1,4 @@
-import { relations } from 'drizzle-orm'
+import { relations, sql } from 'drizzle-orm'
 import {
   index,
   pgTable,
@@ -22,6 +22,7 @@ export const users = pgTable(
   },
   (table) => ({
     emailUnique: uniqueIndex('users_email_unique').on(table.email),
+    singleOwner: uniqueIndex('users_single_owner_idx').on(table.role).where(sql`${table.role} = 'owner'`),
   }),
 )
 

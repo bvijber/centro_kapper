@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { and, eq } from 'drizzle-orm'
 
 import { db } from '../db/client.server'
-import { customerProfiles, staffProfiles } from '../db/schema/profiles'
+import { customerProfiles, ownerProfiles } from '../db/schema/profiles'
 import { sessions, users } from '../db/schema/users'
 import { AuthError } from './auth.errors'
 import { recordAuditEvent } from './audit.server'
@@ -76,8 +76,6 @@ export async function login(input: LoginInput): Promise<SafeUser> {
     throw new AuthError('Ongeldige inloggegevens.', 'INVALID_CREDENTIALS')
   }
 
-  const current = await getCurrentSessionUser()
-  if (current) await revokeCurrentSession()
   let name: string
   let phone: string
   if (user.role === 'customer') {
@@ -86,13 +84,15 @@ export async function login(input: LoginInput): Promise<SafeUser> {
     name = profile.fullName
     phone = profile.phone
   } else if (user.role === 'owner') {
-    const profile = (await db.select().from(staffProfiles).where(and(eq(staffProfiles.userId, user.id), eq(staffProfiles.active, true))).limit(1))[0]
+    const profile = (await db.select().from(ownerProfiles).where(and(eq(ownerProfiles.userId, user.id), eq(ownerProfiles.active, true))).limit(1))[0]
     if (!profile) throw new AuthError('Ongeldige inloggegevens.', 'INVALID_CREDENTIALS')
     name = profile.displayName
     phone = profile.phone
   } else {
     throw new AuthError('Ongeldige inloggegevens.', 'INVALID_CREDENTIALS')
   }
+  const current = await getCurrentSessionUser()
+  if (current) await revokeCurrentSession()
   const safeUser: SafeUser = { id: user.id, email: user.email, role: user.role, name, phone }
   await createSession(user.id, user.role)
   await recordAuditEvent({ action: 'auth.login.success', actorUserId: user.id, entityType: 'user', entityId: user.id, ...context })
@@ -115,36 +115,26 @@ export async function refreshSession(): Promise<SafeUser | null> {
   return user
 }
 
-export async function createInitialStaffAccount(input: { email: string; password: string; displayName: string; phone: string }): Promise<SafeUser> {
-  const email = normalizeEmail(input.email)
-  if (!email || !input.password || !input.displayName.trim()) throw new AuthError('Staff setup is ongeldig.', 'SETUP_FAILED')
-  const passwordHash = await hashPassword(input.password)
-  try {
-    const [user] = await db.insert(users).values({ email, passwordHash, role: 'staff' }).returning()
-    if (!user) throw new AuthError('Staff setup is mislukt.', 'SETUP_FAILED')
-    const [profile] = await db.insert(staffProfiles).values({ userId: user.id, displayName: input.displayName.trim(), phone: input.phone.trim(), active: true }).returning()
-    if (!profile) throw new AuthError('Staff setup is mislukt.', 'SETUP_FAILED')
-    return { id: user.id, email: user.email, role: 'staff', name: profile.displayName, phone: profile.phone }
-  } catch (error: unknown) {
-    if (error instanceof AuthError) throw error
-    if (String(error).toLowerCase().includes('unique')) throw new AuthError('Er bestaat al een account met dit e-mailadres.', 'EMAIL_TAKEN')
-    throw new AuthError('Staff setup is mislukt.', 'SETUP_FAILED')
-  }
-}
-
 export async function createInitialOwnerAccount(input: { email: string; password: string; displayName: string; phone: string }): Promise<SafeUser> {
   const email = normalizeEmail(input.email)
   if (!email || !input.password || !input.displayName.trim()) throw new AuthError('Owner setup is ongeldig.', 'SETUP_FAILED')
   const passwordHash = await hashPassword(input.password)
   try {
-    const [user] = await db.insert(users).values({ email, passwordHash, role: 'owner' }).returning()
-    if (!user) throw new AuthError('Owner setup is mislukt.', 'SETUP_FAILED')
-    const [profile] = await db.insert(staffProfiles).values({ userId: user.id, displayName: input.displayName.trim(), phone: input.phone.trim(), active: true }).returning()
-    if (!profile) throw new AuthError('Owner setup is mislukt.', 'SETUP_FAILED')
-    return { id: user.id, email: user.email, role: 'owner', name: profile.displayName, phone: profile.phone }
+    const safeUser = await db.transaction(async (tx) => {
+      const [existingOwner] = await tx.select({ id: users.id }).from(users).where(eq(users.role, 'owner')).limit(1)
+      if (existingOwner) throw new AuthError('Er bestaat al een eigenaaraccount; deze installatie ondersteunt exact één eigenaar.', 'SETUP_FAILED')
+      const [user] = await tx.insert(users).values({ email, passwordHash, role: 'owner' }).returning()
+      if (!user) throw new AuthError('Owner setup is mislukt.', 'SETUP_FAILED')
+      const [profile] = await tx.insert(ownerProfiles).values({ userId: user.id, displayName: input.displayName.trim(), phone: input.phone.trim(), active: true }).returning()
+      if (!profile) throw new AuthError('Owner setup is mislukt.', 'SETUP_FAILED')
+      return { id: user.id, email: user.email, role: 'owner' as const, name: profile.displayName, phone: profile.phone }
+    })
+    return safeUser
   } catch (error: unknown) {
     if (error instanceof AuthError) throw error
-    if (String(error).toLowerCase().includes('unique')) throw new AuthError('Er bestaat al een account met dit e-mailadres.', 'EMAIL_TAKEN')
+    const message = String(error).toLowerCase()
+    if (message.includes('users_single_owner_idx')) throw new AuthError('Er bestaat al een eigenaaraccount; deze installatie ondersteunt exact één eigenaar.', 'SETUP_FAILED')
+    if (message.includes('unique')) throw new AuthError('Er bestaat al een account met dit e-mailadres.', 'EMAIL_TAKEN')
     throw new AuthError('Owner setup is mislukt.', 'SETUP_FAILED')
   }
 }
