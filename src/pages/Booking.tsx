@@ -6,6 +6,7 @@ import { createAppointmentFn, getAvailabilityFn, listBookableServicesFn } from '
 import { getOpeningHoursFn } from '../settings/settings.functions'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
+import { BottomNav } from '../components/BottomNav'
 import { ServiceCard } from '../components/ServiceCard'
 import { addCalendarDays, formatAmsterdamDate, formatAmsterdamDateKey, getAmsterdamDateParts, getAmsterdamWeekday } from '../timezone'
 
@@ -107,8 +108,10 @@ export function Booking() {
 
   return <main className="page booking-page">
     <header className="subheader"><Link to="/home"><ArrowLeft /></Link><h2>AFSPRAAK BOEKEN</h2></header>
-    <Card className="fixed-business"><span className="eyebrow">JE BOEKT BIJ</span><strong>Centro Kapper</strong><small>Nieuwe Markt 12, Breda</small></Card>
-    <Card className="barber-profile"><div className="avatar">SV</div><div><h3>Sam Vermeer</h3><p>Eigenaar</p><span><Star size={15} fill="currentColor" /> 4.9 (86 reviews)</span></div></Card>
+    <div className="booking-business">
+      <Card className="fixed-business"><span className="eyebrow">JE BOEKT BIJ</span><strong>Centro Kapper</strong><small>Nieuwe Markt 12, Breda</small></Card>
+      <Card className="barber-profile"><div className="avatar">SV</div><div><h3>Sam Vermeer</h3><p>Eigenaar</p><span><Star size={15} fill="currentColor" /> 4.9 (86 reviews)</span></div></Card>
+    </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {success && <p className="success-message" role="status">{success}</p>}
     <p className="eyebrow">KIES EEN SERVICE</p>
@@ -122,5 +125,6 @@ export function Booking() {
     </div>
     {!user && <Card className="booking-guest-form"><p className="eyebrow">JOUW GEGEVENS</p><label>Naam *<input value={guestName} onChange={(event) => setGuestName(event.target.value)} /></label><label>Telefoonnummer *<input value={guestPhone} onChange={(event) => setGuestPhone(event.target.value)} type="tel" /></label><label>E-mailadres<input value={guestEmail} onChange={(event) => setGuestEmail(event.target.value)} type="email" /></label></Card>}
     <Button onClick={() => void submit()} disabled={submitting}>{submitting ? 'Bezig...' : 'Bevestig afspraak'} <ChevronRight size={18} /></Button>
+    <div className="booking-bottom-nav"><BottomNav /></div>
   </main>
 }

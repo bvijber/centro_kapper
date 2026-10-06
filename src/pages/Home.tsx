@@ -23,22 +23,30 @@ export function Home() {
       .finally(() => setLoading(false))
   }, [])
 
-  return <main className="page shell">
+  return <main className="page shell home-page">
     <CustomerHeader />
-    <Card className="business-hero"><img src={logo} alt="Centro Kapper logo" /><div><p className="eyebrow">CENTRO KAPPER</p><h1>Welkom,<br /><em>jouw moment.</em></h1></div></Card>
-    {loading ? <p className="lead">Bezig met laden...</p> : null}
-    {error ? <p className="form-error" role="alert">{error}</p> : null}
-    {!loading && !error && data && (
-      <>
-        <div className="business-status"><span><i /> {data.openStatus.label}</span><small>{data.openStatus.detail}</small></div>
-        <div className="address"><MapPin size={18} /><span>{data.business.address}</span></div>
-        <div className="home-actions"><Link to="/booking"><Button>Afspraak maken</Button></Link><Link to="/queue" className="secondary-action"><Clock3 size={19} /> Aansluiten bij wachtrij</Link></div>
-        <div className="section-heading"><h2>Onze services</h2><span>Centro Kapper</span></div>
-        <div className="featured-services">{data.services.map(service => <Card key={service.id} className="featured-service"><Scissors size={21} /><div><b>{service.name}</b><small>{service.description} · {service.durationMinutes} min</small></div><strong>{formatPriceCents(service.priceCents)}</strong></Card>)}</div>
-        <Card className="hours-card"><div><p className="eyebrow">OPENINGSTIJDEN</p><h3>{data.hoursSummary}</h3><p>Vandaag staan we voor je klaar.</p></div><Clock3 /></Card>
-        <div className="contact-actions"><a href={`tel:${data.business.phone}`}><Phone size={18} /> Contact</a><a href="https://maps.google.com/?q=Nieuwe+Markt+12+Breda" target="_blank" rel="noreferrer"><Navigation size={18} /> Route</a></div>
-      </>
-    )}
+    <div className="home-main">
+      <Card className="business-hero"><img src={logo} alt="Centro Kapper logo" /><div><p className="eyebrow">CENTRO KAPPER</p><h1>Welkom,<br /><em>jouw moment.</em></h1></div></Card>
+      {loading ? <p className="lead">Bezig met laden...</p> : null}
+      {error ? <p className="form-error" role="alert">{error}</p> : null}
+      {!loading && !error && data && (
+        <>
+          <div className="business-status"><span><i /> {data.openStatus.label}</span><small>{data.openStatus.detail}</small></div>
+          <div className="address"><MapPin size={18} /><span>{data.business.address}</span></div>
+          <div className="home-actions"><Link to="/booking"><Button>Afspraak maken</Button></Link><Link to="/queue" className="secondary-action"><Clock3 size={19} /> Aansluiten bij wachtrij</Link></div>
+          <div className="section-heading"><h2>Onze services</h2><span>Centro Kapper</span></div>
+          {data.services.length === 0 ? <div className="empty-state"><p className="eyebrow">GEEN SERVICES</p><p>Er zijn momenteel geen services beschikbaar.</p></div> : <div className="featured-services">{data.services.map(service => <Card key={service.id} className="featured-service"><Scissors size={21} aria-hidden="true" /><div><b>{service.name}</b><small>{service.description} · {service.durationMinutes} min</small></div><strong>{formatPriceCents(service.priceCents)}</strong></Card>)}</div>}
+        </>
+      )}
+    </div>
+    <aside className="home-aside">
+      {!loading && !error && data && (
+        <>
+          <Card className="hours-card"><div><p className="eyebrow">OPENINGSTIJDEN</p><h3>{data.hoursSummary}</h3><p>Vandaag staan we voor je klaar.</p></div><Clock3 /></Card>
+          <div className="contact-actions"><a href={`tel:${data.business.phone}`}><Phone size={18} /> Contact</a><a href="https://maps.google.com/?q=Nieuwe+Markt+12+Breda" target="_blank" rel="noreferrer"><Navigation size={18} /> Route</a></div>
+        </>
+      )}
+    </aside>
     <BottomNav />
   </main>
 }

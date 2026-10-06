@@ -32,7 +32,7 @@ export function OwnerDashboard() {
     ? undefined
     : `${metrics.revenueDeltaPercent >= 0 ? '+' : ''}${metrics.revenueDeltaPercent}% ten opzichte van vorige maand`
 
-  return <main className="page shell staff-page">
+  return <main className="page shell staff-page owner-dashboard-page">
     <header className="topbar">
       <div className="brand"><img src={logo} alt="Centro Kapper" /><span>Centro <b>Kapper</b></span></div>
       <span className="staff-label">EIGENAAR</span>
