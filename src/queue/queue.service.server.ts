@@ -29,6 +29,14 @@ import {
   updateQueueEntry,
 } from './queue.repository.server'
 import type { QueueJoinInput } from './queue.schemas'
+import {
+  recordQueueJoinedNotification,
+  recordQueueLeftNotification,
+} from '../notifications/owner-notification.service.server'
+import {
+  shouldNotifyQueueJoined,
+  shouldNotifyQueueLeft,
+} from '../notifications/owner-notification.events'
 
 export class QueueError extends Error {
   constructor(message: string, readonly code: 'NOT_FOUND' | 'CONFLICT' | 'INVALID' | 'FAILED') {
@@ -166,6 +174,17 @@ export async function joinQueue(input: QueueJoinInput, actor: QueueActor, now = 
         entityId: result.id,
         metadata: auditMetadata(null, result, { identity: customerUserId ? 'customer' : 'guest' }),
       }, tx)
+      // De melding voor de eigenaar wordt binnen dezelfde transactie
+      // vastgelegd als de inschrijving: een geslaagde inschrijving kan daardoor
+      // nooit stilzwijgend een melding verliezen. Een walk-in die de eigenaar
+      // zelf aanmaakt levert bewust geen melding op.
+      if (shouldNotifyQueueJoined(actor.kind)) {
+        await recordQueueJoinedNotification(tx, {
+          id: result.id,
+          customerUserId: result.customerUserId,
+          guestName: result.guestName,
+        })
+      }
        return guestCapability ? { ...result, guestCapability } : result
     })
   } catch (error) {
@@ -228,7 +247,12 @@ async function transitionQueueEntry(
   id: string,
   targetStatus: QueueStatus,
   actor: QueueActor,
-  options: { appointmentId?: string | null; joinedAt?: Date; action?: string } = {},
+  options: {
+    appointmentId?: string | null
+    joinedAt?: Date
+    action?: string
+    notifyOwnerQueueLeft?: boolean
+  } = {},
 ): Promise<QueueEntryDTO> {
   try {
     return await db.transaction(async (tx) => {
@@ -265,6 +289,15 @@ async function transitionQueueEntry(
         entityId: result.id,
         metadata: auditMetadata(current.status, result),
       }, tx)
+      // Alleen een klant of gast die de wachtrij zelf verlaat meldt dit aan de
+      // eigenaar. Eigenaarsacties (annuleren, overslaan, afronden) doen dat niet.
+      if (options.notifyOwnerQueueLeft === true && shouldNotifyQueueLeft(actor.kind)) {
+        await recordQueueLeftNotification(tx, {
+          id: result.id,
+          customerUserId: result.customerUserId,
+          guestName: result.guestName,
+        })
+      }
       return result
     })
   } catch (error) {
@@ -274,7 +307,10 @@ async function transitionQueueEntry(
 }
 
 export function leaveQueue(id: string, actor: QueueActor): Promise<QueueEntryDTO> {
-  return transitionQueueEntry(id, 'cancelled', actor, { action: 'queue.leave' })
+  return transitionQueueEntry(id, 'cancelled', actor, {
+    action: 'queue.leave',
+    notifyOwnerQueueLeft: true,
+  })
 }
 
 export function callQueueEntry(id: string, actor: QueueMutationActor): Promise<QueueEntryDTO> {

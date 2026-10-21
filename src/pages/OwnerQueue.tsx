@@ -5,6 +5,7 @@ import type { QueueEntryDTO } from '../queue/queue.service.server'
 import { formatAmsterdamDateKey, formatAmsterdamTime } from '../timezone'
 import { Card } from '../components/Card'
 import { OwnerBottomNav } from '../components/OwnerBottomNav'
+import { OwnerHeader } from '../components/OwnerHeader'
 import { Button } from '../components/Button'
 
 export function OwnerQueue() {
@@ -32,6 +33,7 @@ export function OwnerQueue() {
   const action = async (work: () => Promise<unknown>, text: string) => { try { await work(); await load(); setMessage(text); setError('') } catch { setError('De actie kon niet worden uitgevoerd.') } }
   const addWalkIn = async () => { if (!guestName.trim() || !guestPhone.trim() || !serviceId) return setError('Naam, telefoon en service zijn verplicht.'); await action(() => joinQueueFn({ data: { serviceId, guestName: guestName.trim(), guestPhone: guestPhone.trim() } }), 'Walk-in toegevoegd.'); setGuestName(''); setGuestPhone('') }
   return <main className="page shell staff-page owner-queue-page">
+    <OwnerHeader />
     <p className="eyebrow">CENTRO KAPPER · EIGENAAR</p>
     <h1 className="staff-title">Wachtrij<br /><em>beheren.</em></h1>
     {error && <p className="form-error" role="alert">{error}</p>}

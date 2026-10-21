@@ -4,7 +4,7 @@
 **Versie:** 1.0  
 **Status:** Living Document / Source of Truth  
 **Project:** Centro Kapper  
-**Laatste update:** 2026-09-03
+**Laatste update:** 2026-10-21
 
 ---
 
@@ -264,7 +264,7 @@ De actieve route krijgt class `active`. Owner pages gebruiken dezelfde merkstijl
 
 `OwnerDashboard.tsx` bevat:
 
-- merkheader en `EIGENAAR` label;
+- merkheader met `EIGENAAR` label en notificatiebel (zie 8.3);
 - beheer-eyebrow;
 - owner greeting;
 - revenue card;
@@ -274,15 +274,45 @@ De actieve route krijgt class `active`. Owner pages gebruiken dezelfde merkstijl
 
 Omzet en metrics worden server-side afgeleid via `getOwnerDashboardFn()`; er is geen team-/staff-KPI omdat de owner-only beslissing geen tweede beheerder kent.
 
-### 8.3 Profiel als hubpagina
+### 8.3 Notificatiebel
+
+De eigenaar krijgt een **interne notificatiebel** in de owner-header. De bel maakt onderdeel uit van de gedeelde `OwnerHeader` en staat daarmee op alle eigenaarpagina's; het dashboard (`/owner`) is de primaire plek.
+
+De businessregels staan in `BUSINESS_RULES.md` §29 (Eigenaar-notificaties v1).
+
+De bel bevat:
+
+- een `Bell`-icoon als icon-only button met een toegankelijk label;
+- een teller met het aantal ongelezen notificaties;
+- een panel met de meldingenlijst;
+- een actie om alles als gelezen te markeren.
+
+**CURRENT**
+
+- `OwnerNotificationBell.tsx` implementeert de bel; de teller, de lijst en de leesstatus komen uit `getOwnerNotificationsFn()`, `markOwnerNotificationReadFn()` en `markAllOwnerNotificationsReadFn()`.
+- De gedeelde `OwnerHeader` wordt gebruikt door dashboard, afspraken, wachtrij, profiel en instellingen.
+- Het decoratieve `Bell`-icoon dat eerder in `OwnerAppointments.tsx` stond, is vervangen door de echte bel.
+- De bel luistert naar een SSE-stroom (`/api/owner-notifications/stream`) en werkt terug op polling wanneer die stroom niet beschikbaar is.
+
+**UI RULE**
+
+- De teller en de meldingenlijst worden **automatisch ververst**; de gebruiker hoeft niet te verversen.
+- Klikken op een melding markeert deze als gelezen en opent de relevante pagina (`/owner/queue` of `/owner/appointments`).
+- De teller is een visuele indicator; de daadwerkelijke ongelezenstatus komt server-side en wordt niet client-side afgeleid.
+- De bel gebruikt de bestaande topbar-, `Card`- en iconconventies; er komt geen nieuw visueel systeem.
+- De bel toont alleen de meldingen van de eigenaar; de UI biedt geen enkele mogelijkheid om meldingen van anderen te openen.
+- Notificaties en hun leesstatus zijn server state. De UI simuleert geen ongelezen teller en markeert niets lokaal als gelezen zonder serverbevestiging.
+- De UI toont geen verbindingsstatus of andere techniek van de stroom; een niet-beschikbare stroom is een terugval op polling en blijft voor de gebruiker onzichtbaar.
+
+### 8.4 Profiel als hubpagina
 
 `OwnerProfile.tsx` is uitsluitend een compacte profielhub: eigenaaraccountkaart (`UserRound`), inline profielbewerking (naam, telefoon via `getMyOwnerProfileFn()` / `updateMyOwnerProfileFn()`), navigatie-cards onder `Beheer` naar `/owner`, `/owner/appointments`, `/owner/queue` en `/owner/settings`, plus logout. Saloninformatie, boekingsinstellingen, openingstijden, pauzes en blokkades, en diensten (`OwnerSettingsSections`) staan niet op de profielpagina maar uitsluitend op `/owner/settings`.
 
-### 8.3 Appointments
+### 8.5 Appointments
 
 `OwnerAppointments.tsx` bevat:
 
-- owner header met logo en bell;
+- owner header met logo en notificatiebel (zie 8.3);
 - beheer-eyebrow;
 - heading en calendar icon;
 - primary `Nieuwe afspraak` action;
@@ -295,7 +325,7 @@ Omzet en metrics worden server-side afgeleid via `getOwnerDashboardFn()`; er is 
 
 Appointment cards tonen tijd, status, klantinitialen, klant, service, duur, telefoonnummer, optionele notitie en actions. De huidige actions zijn Details, Bewerk, Annuleer, Bevestig, Afgerond en No-show, afhankelijk van lokale status.
 
-### 8.4 Queue
+### 8.6 Queue
 
 `OwnerQueue.tsx` bevat:
 
@@ -311,11 +341,11 @@ Appointment cards tonen tijd, status, klantinitialen, klant, service, duur, tele
 
 De waarden en transitions komen server-side uit `listOwnerQueueFn()` en de queue Server Functions; walk-ins worden via `joinQueueFn()` toegevoegd.
 
-### 8.5 Profiel
+### 8.7 Profiel
 
 `OwnerProfile.tsx` toont het eigenaarprofiel (naam, telefoon, e-mail), profile editing via `getMyOwnerProfileFn()` / `updateMyOwnerProfileFn()`, navigatie-cards naar de vier beheerpagina's en logout. De pagina rendert `OwnerSettingsSections` niet.
 
-### 8.6 Instellingen
+### 8.8 Instellingen
 
 `OwnerSettings.tsx` toont de instellingenpagina: merkheader met `EIGENAAR`, eyebrow `Instellingen`, titel, lead, `OwnerSettingsSections`, logout en `OwnerBottomNav`.
 
@@ -360,6 +390,10 @@ Owner UI mag meer operationele acties tonen dan customer UI, maar gebruikt dezel
 ### Navigation
 
 `BottomNav`, `OwnerBottomNav` en `CustomerHeader` zijn de bestaande navigation/header building blocks. Gebruik deze patronen waar dezelfde context van toepassing is.
+
+### `OwnerHeader`
+
+`OwnerHeader` rendert de gedeelde merkheader van de eigenaarpagina's: het merklogo als link naar `/owner`, het `EIGENAAR` label en de notificatiebel. Dashboard, afspraken, wachtrij, profiel en instellingen gebruiken deze component, zodat de bel op elke eigenaarpagina op dezelfde plek staat.
 
 ### Route guards
 
@@ -505,7 +539,7 @@ Guest booking mag geen verplicht accountproces krijgen. Als authentication optio
 
 ## 16. Barber configuration UI
 
-De requirements voorzien UI voor services, prijs, serviceduur, opening hours, blocks, buffer, cancellation settings, salon information en appointment settings. Die UI bestaat op `/owner/settings` (zie §8.6).
+De requirements voorzien UI voor services, prijs, serviceduur, opening hours, blocks, buffer, cancellation settings, salon information en appointment settings. Die UI bestaat op `/owner/settings` (zie §8.8).
 
 **UI RULE**
 
@@ -565,7 +599,7 @@ Maak onderscheid tussen validation error, server error, authorization error, una
 
 **CURRENT**
 
-De staff appointment- en queuepagina’s gebruiken `.success-message` voor lokale success feedback. Auth flows navigeren na succes. Er is geen gedeeld toast- of notification-systeem vastgesteld.
+De staff appointment- en queuepagina’s gebruiken `.success-message` voor lokale success feedback. Auth flows navigeren na succes. Er is geen gedeeld toast-systeem vastgesteld. De interne notificatiebel (zie 8.3 en 36.1) is een vastgelegde notificatiefunctie en geen success-feedbackpatroon; zij vervangt `.success-message` niet en wordt niet als zodanig gebruikt.
 
 **UI RULE**
 
@@ -678,6 +712,7 @@ De volgende data is domein/server state en hoort uiteindelijk uit Server Functio
 - customer- en staffprofiledata;
 - business settings;
 - queue;
+- notificaties;
 - authentication state.
 
 ### UI state
@@ -837,11 +872,11 @@ Deze lijst beschrijft future/transition work, geen aanwezige functionaliteit en 
 
 ## 33. Open decisions
 
-De bestaande open business decisions zijn:
+Voor notificaties zijn de events, de voorkeuren en de foutafhandeling vastgelegd voor klantenpush (`BUSINESS_RULES.md` §28) en voor eigenaar-notificaties (`BUSINESS_RULES.md` §29). Openstaand blijven:
 
-1. notification events;
-2. notification preferences;
-3. failed delivery/retry behavior.
+1. notification events buiten die twee bereiken;
+2. user notification preferences buiten de vastgelegde opt-ins en instellingen;
+3. failed delivery/retry behavior voor die toekomstige events.
 
 De UI mag voor deze punten geen definitieve waarden, opties, statusflows of queue UX-regels verzinnen. De UI moet toekomstige configuratie kunnen tonen zodra de productbeslissingen zijn vastgelegd.
 
@@ -893,4 +928,29 @@ Er worden geen concrete installatieschermen of flows verondersteld wanneer deze 
 - Notification settings kunnen later worden toegevoegd wanneer de business rules dit vereisen.
 - Notifications sluiten aan op de bestaande visuele identiteit.
 
-Deze regels definiëren geen concrete notification-events, schermen of flows. De UI mag geen notification business rules invullen die nog openstaan in `BUSINESS_RULES.md`.
+De algemene regels hierboven definiëren geen concrete notification-events. De concrete events en flows staan in `BUSINESS_RULES.md` §28 (klantenpush) en §29 (eigenaar-notificaties) en, voor de eigenaar, in 8.3.
+
+### 36.1 Eigenaar-notificatiebel
+
+**UI RULE/FUTURE**
+
+- De interne notificatiebel staat in de owner-header en is onderdeel van de owner-shell; het dashboard is de primaire plek.
+- De bel is een icon-only button met een toegankelijk label en een zichtbare teller voor het aantal ongelezen notificaties.
+- De meldingenlijst toont de meldingen van de eigenaar; klikken markeert een melding als gelezen en opent de relevante pagina.
+- "Alles als gelezen markeren" is beschikbaar zolang er ongelezen meldingen zijn.
+- De bel en de teller worden automatisch ververst; een handmatige verversactie is niet vereist.
+- Leesstatus en teller komen uit de server; de UI leidt de ongelezenstatus niet client-side af en markeert niets lokaal als gelezen.
+- De bewaartermijn van de interne meldingen is vast (30 dagen): meldingen ouder dan 30 dagen zijn niet meer zichtbaar. De UI biedt daarvoor geen instelling en geen optie voor onbeperkte bewaring, en de bewaartermijn hoort niet bij de pushapparaten.
+- De bel gebruikt de bestaande topbar-, `Card`- en iconconventies; er komt geen nieuw visueel systeem.
+- Notificaties van de eigenaar zijn uitsluitend voor de eigenaar zichtbaar; de UI biedt geen enkele mogelijkheid om andermans meldingen te openen.
+
+### 36.2 Eigenaarpush
+
+**UI RULE/FUTURE**
+
+- Push voor de eigenaar is optioneel en wordt uitsluitend ingeschakeld vanuit een expliciete gebruikersactie; de UI vraagt nooit automatisch toestemming bij het openen, bezoeken of herladen van een pagina.
+- De UI toont per apparaat of push aanstaat en biedt de mogelijkheid om push op dat apparaat uit te schakelen.
+- De UI maakt expliciet dat push per apparaat geldt en dat meerdere apparaten tegelijk actief kunnen zijn.
+- De UI toont geen retentie-instelling voor pushapparaten; technische pushgegevens worden uitsluitend bewaard zolang ze nodig zijn voor verzending (`BUSINESS_RULES.md` §29) en de UI regelt dat niet.
+- Er is geen stilteperiode-instelling in v1 en de UI biedt die dus niet aan.
+- Wanneer push niet wordt ondersteund of niet is toegestaan, blijft de interne notificatiebel beschikbaar en wordt dat in de UI duidelijk gemaakt.

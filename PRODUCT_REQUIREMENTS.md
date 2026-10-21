@@ -8,7 +8,7 @@ Je kunt dit vervolgens via OpenCode als `PRODUCT_REQUIREMENTS.md` in de projectr
 **Versie:** 1.0  
 **Status:** Living Document / Source of Truth  
 **Project:** Centro Kapper  
-**Laatste update:** 2026-09-03
+**Laatste update:** 2026-10-21
 
 ## Current Product Decision
 
@@ -56,7 +56,8 @@ De applicatie ondersteunt onder andere:
 - beheer van diensten;
 - beheer van prijzen;
 - beheer van planning en beschikbaarheid;
-- beheer van bedrijfsinstellingen.
+- beheer van bedrijfsinstellingen;
+- interne meldingen voor de eigenaar via een notificatiebel, met optionele pushmeldingen op eigen apparaten.
 
 De barber moet zoveel mogelijk operationele instellingen zelfstandig vanuit de applicatie kunnen aanpassen, zonder dat hiervoor een codewijziging nodig is.
 
@@ -103,6 +104,8 @@ De barber kan:
 - pauzes en blokkades beheren;
 - boekingsinstellingen beheren;
 - bedrijfsinformatie beheren;
+- interne meldingen ontvangen en beheren via een notificatiebel;
+- pushmeldingen voor eigen apparaten in- en uitschakelen;
 - eigen staff-profiel beheren voor zover ondersteund.
 
 Alle staff-functionaliteit moet server-side geautoriseerd worden.
@@ -578,10 +581,11 @@ Ze moeten expliciet worden besloten voordat de betreffende functionaliteit als d
 
 ### Notifications
 
-- Welke notification events moeten worden ondersteund?
-- Welke notifications zijn verplicht versus optioneel?
-- Welke user notification preferences zijn configureerbaar?
-- Hoe moeten failed deliveries en retries worden behandeld?
+De events, de verplichtheid versus optionaliteit, de voorkeuren en de foutafhandeling zijn vastgelegd voor klantenpush v1 (`BUSINESS_RULES.md` §28) en voor eigenaar-notificaties v1 (`BUSINESS_RULES.md` §29). Openstaand blijft:
+
+- Welke notification events buiten die twee bereiken moeten worden ondersteund, bijvoorbeeld appointment confirmation, reminders of terugkerende meldingen?
+- Welke user notification preferences komen daarvoor beschikbaar, naast de expliciete opt-in per wachtrijvermelding (§28) en de expliciete pushopt-in per apparaat (§29)?
+- Hoe moeten failed deliveries en retries worden behandeld voor die toekomstige events?
 
 ### PWA
 
@@ -641,16 +645,48 @@ De notification-capability moet aan de volgende productvereisten voldoen:
 - notification delivery is niet uitsluitend afhankelijk van een actieve browserpagina;
 - delivery gaat veilig om met authenticatie, autorisatie en privacy.
 
-De exacte notification-events, triggers, timing en voorkeuren zijn nog geen definitieve business requirements. Appointment confirmation, reminders en cancellation kunnen mogelijke toekomstige notification types zijn, maar vormen op dit moment geen vastgelegd gedrag.
+De notification-events zijn deels vastgelegd: klantenpush v1 in `BUSINESS_RULES.md` §28 en eigenaar-notificaties v1 in §30 van dit document. Events buiten die twee vastgelegde bereiken — bijvoorbeeld appointment confirmation, reminders of terugkerende meldingen — zijn nog geen vastgelegd gedrag en blijven open.
 
-## 30. Aanvullende open beslissingen
+## 30. Eigenaar-notificaties
+
+De eigenaar krijgt een **interne notificatiebel** in het eigenaarsgedeelte van de applicatie, met een ongelezen teller en een meldingenlijst. Daarnaast kan de eigenaar **optionele pushmeldingen** voor zijn eigen apparaten inschakelen.
+
+De productregels staan in `BUSINESS_RULES.md` §29 (Eigenaar-notificaties v1). Dat document is leidend; dit document legt de productvereisten vast.
+
+De applicatie ondersteunt de volgende gebeurtenissen voor de eigenaar:
+
+- nieuwe wachtrij-inschrijving;
+- nieuwe afspraak;
+- annulering (iedere daadwerkelijke afspraakstatusovergang naar `cancelled`);
+- klant verlaat de wachtrij.
+
+Productvereisten:
+
+- een door de eigenaar zelf aangemaakte walk-in levert geen melding op;
+- de interne bel is toegeschermd en alleen voor de eigenaar zichtbaar;
+- de interne bel mag de klantnaam tonen; pushmeldingen bevatten geen klantnaam en geen andere persoonsgegevens;
+- klikken op een melding markeert deze als gelezen en opent de relevante pagina; "alles als gelezen markeren" is beschikbaar;
+- de bewaartermijn van de interne meldingen is vast 30 dagen; meldingen worden na 30 dagen automatisch verwijderd, ongeacht of ze gelezen of ongelezen zijn, en er is geen instelling voor onbeperkte bewaring;
+- push is optioneel, vereist expliciete toestemming, ondersteunt meerdere apparaten en is per apparaat uit te schakelen;
+- er is geen stilteperiode in v1;
+- annuleringen verschijnen in de interne bel en worden via push gemeld wanneer push is ingeschakeld;
+- een notificatie- of pushfout laat de kernactie niet mislukken;
+- het aanmaken van een melding is idempotent; één afspraakstatusovergang naar `cancelled` levert precies één melding op;
+- technische pushgegevens van de eigenaar worden uitsluitend bewaard zolang ze nodig zijn voor verzending, retries, herstel en deduplicatie en worden daarna veilig opgeschoord, zonder vaste bewaartermijn;
+- actieve, geldige pushabonnementen van de eigenaar worden bewaard zolang ze nodig zijn voor verzending en worden niet verwijderd vanwege de bewaartermijn van meldingen;
+- alleen de eigenaar mag zijn meldingen beheren;
+- klantenpush blijft volledig gescheiden van eigenaarpush;
+- de notificatiebel ververst automatisch.
+
+## 31. Aanvullende open beslissingen
 
 ### Notifications
 
-- Welke notification events moeten worden ondersteund?
-- Welke notifications zijn verplicht versus optioneel?
-- Welke user notification preferences zijn configureerbaar?
-- Hoe moeten failed deliveries en retries worden behandeld?
+De events, de verplichtheid versus optionaliteit, de voorkeuren en de foutafhandeling zijn vastgelegd voor klantenpush v1 (`BUSINESS_RULES.md` §28) en voor eigenaar-notificaties v1 (`BUSINESS_RULES.md` §29). Openstaand blijft:
+
+- Welke notification events buiten die twee bereiken moeten worden ondersteund, bijvoorbeeld appointment confirmation, reminders of terugkerende meldingen?
+- Welke user notification preferences komen daarvoor beschikbaar, naast de expliciete opt-in per wachtrijvermelding (§28) en de expliciete pushopt-in per apparaat (§29)?
+- Hoe moeten failed deliveries en retries worden behandeld voor die toekomstige events?
 
 ### PWA
 

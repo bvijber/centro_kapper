@@ -93,6 +93,17 @@ export async function getCurrentSessionUser(): Promise<{ session: typeof session
   return loadSessionUser(hashSessionToken(token)).then((result) => result && { session: result.session, user: result.safeUser })
 }
 
+/**
+ * Zoekt de sessie op basis van een ruwe sessietoken. Wordt gebruikt door
+ * serverroutes die een Request ontvangen en daarom niet op de requestcontext
+ * kunnen vertrouwen (bijvoorbeeld een streamingrespons).
+ */
+export async function getSessionUserFromToken(token: string | null | undefined): Promise<SafeUser | null> {
+  if (!token) return null
+  const result = await loadSessionUser(hashSessionToken(token))
+  return result?.safeUser ?? null
+}
+
 export async function revokeCurrentSession(): Promise<string | null> {
   const token = getCookie(SESSION_COOKIE)
   clearSessionCookie()

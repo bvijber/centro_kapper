@@ -24,6 +24,7 @@ import { Route as OwnerOwnerAppointmentsRouteImport } from './routes/_owner/owne
 import { Route as OwnerOwnerProfileRouteImport } from './routes/_owner/owner/profile'
 import { Route as OwnerOwnerQueueRouteImport } from './routes/_owner/owner/queue'
 import { Route as OwnerOwnerSettingsRouteImport } from './routes/_owner/owner/settings'
+import { Route as ApiOwnerNotificationsStreamRouteImport } from './routes/api/owner-notifications.stream'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -98,6 +99,12 @@ const OwnerOwnerSettingsRoute = OwnerOwnerSettingsRouteImport.update({
   path: '/owner/settings',
   getParentRoute: () => OwnerRoute,
 } as any)
+const ApiOwnerNotificationsStreamRoute =
+  ApiOwnerNotificationsStreamRouteImport.update({
+    id: '/api/owner-notifications/stream',
+    path: '/api/owner-notifications/stream',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -112,6 +119,7 @@ export interface FileRoutesByFullPath {
   '/owner/profile': typeof OwnerOwnerProfileRoute
   '/owner/queue': typeof OwnerOwnerQueueRoute
   '/owner/settings': typeof OwnerOwnerSettingsRoute
+  '/api/owner-notifications/stream': typeof ApiOwnerNotificationsStreamRoute
   '/owner/': typeof OwnerOwnerIndexRoute
 }
 export interface FileRoutesByTo {
@@ -127,6 +135,7 @@ export interface FileRoutesByTo {
   '/owner/profile': typeof OwnerOwnerProfileRoute
   '/owner/queue': typeof OwnerOwnerQueueRoute
   '/owner/settings': typeof OwnerOwnerSettingsRoute
+  '/api/owner-notifications/stream': typeof ApiOwnerNotificationsStreamRoute
   '/owner': typeof OwnerOwnerIndexRoute
 }
 export interface FileRoutesById {
@@ -145,6 +154,7 @@ export interface FileRoutesById {
   '/_owner/owner/profile': typeof OwnerOwnerProfileRoute
   '/_owner/owner/queue': typeof OwnerOwnerQueueRoute
   '/_owner/owner/settings': typeof OwnerOwnerSettingsRoute
+  '/api/owner-notifications/stream': typeof ApiOwnerNotificationsStreamRoute
   '/_owner/owner/': typeof OwnerOwnerIndexRoute
 }
 export interface FileRouteTypes {
@@ -162,6 +172,7 @@ export interface FileRouteTypes {
     | '/owner/profile'
     | '/owner/queue'
     | '/owner/settings'
+    | '/api/owner-notifications/stream'
     | '/owner/'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -177,6 +188,7 @@ export interface FileRouteTypes {
     | '/owner/profile'
     | '/owner/queue'
     | '/owner/settings'
+    | '/api/owner-notifications/stream'
     | '/owner'
   id:
     | '__root__'
@@ -194,6 +206,7 @@ export interface FileRouteTypes {
     | '/_owner/owner/profile'
     | '/_owner/owner/queue'
     | '/_owner/owner/settings'
+    | '/api/owner-notifications/stream'
     | '/_owner/owner/'
   fileRoutesById: FileRoutesById
 }
@@ -205,6 +218,7 @@ export interface RootRouteChildren {
   CreateAccountRoute: typeof CreateAccountRoute
   LoginRoute: typeof LoginRoute
   QueueRoute: typeof QueueRoute
+  ApiOwnerNotificationsStreamRoute: typeof ApiOwnerNotificationsStreamRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -314,6 +328,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OwnerOwnerSettingsRouteImport
       parentRoute: typeof OwnerRoute
     }
+    '/api/owner-notifications/stream': {
+      id: '/api/owner-notifications/stream'
+      path: '/api/owner-notifications/stream'
+      fullPath: '/api/owner-notifications/stream'
+      preLoaderRoute: typeof ApiOwnerNotificationsStreamRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -359,6 +380,7 @@ const rootRouteChildren: RootRouteChildren = {
   CreateAccountRoute: CreateAccountRoute,
   LoginRoute: LoginRoute,
   QueueRoute: QueueRoute,
+  ApiOwnerNotificationsStreamRoute: ApiOwnerNotificationsStreamRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

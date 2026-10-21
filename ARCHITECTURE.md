@@ -329,7 +329,8 @@ De huidige schema’s bevatten:
 - `business_profile`, `opening_hours` en `break_periods`;
 - `waiting_list_entries`;
 - `audit_logs`;
-- `rate_limits`.
+- `rate_limits`;
+- `owner_notification_events` en `owner_notifications` (interne eigenaar-notificaties, zie §37).
 
 Belangrijke bestaande databasebescherming:
 
@@ -359,7 +360,7 @@ Applicatielogica en databaseconstraints vullen elkaar aan. Database access blijf
 
 ## 11. Domain, service en repository layers
 
-De repository bevat nu appointment- en queue repository-, authorization- en service/domainlagen. Availability- en service CRUD-lagen bestaan nog niet.
+De repository bevat nu appointment- en queue repository-, authorization- en service/domainlagen, plus een notificatiemodule voor interne eigenaar-notificaties. Availability- en service CRUD-lagen bestaan nog niet.
 
 **ARCHITECTURE RULE**
 
@@ -730,9 +731,9 @@ Nieuwe functionaliteit moet minimaal voldoen aan:
 
 De volgende productbeslissingen zijn nog niet definitief vastgesteld:
 
-1. notification events;
-2. notification preferences;
-3. failed delivery/retry behavior.
+1. notification events buiten Web Push v1 (§28) en Eigenaar-notificaties v1 (§29);
+2. notification preferences buiten de vastgelegde opt-ins en instellingen;
+3. failed delivery/retry behavior voor die toekomstige events.
 
 De architectuur moet deze configuratie kunnen ondersteunen, maar mag de waarden of queue behavior niet zelfstandig invullen.
 
@@ -827,3 +828,94 @@ Retry- en failure handling moeten als architectuurvraag worden ontworpen zonder 
 **ARCHITECTURE RULE**
 
 iOS en Android moeten beide voor de PWA worden ondersteund. PWA-capabilities kunnen per platform en browser verschillen. Implementatie en testing moeten daarom platform-specifiek worden gevalideerd. Platformbeperkingen mogen niet stilzwijgend worden genegeerd of als identiek gedrag worden voorgesteld.
+
+---
+
+## 37. Interne eigenaar-notificaties
+
+**CURRENT**
+
+Interne eigenaar-notificaties (`BUSINESS_RULES.md` §29) bestaan uit twee onderdelen:
+
+```text
+Businessactie (wachtrij of afspraak)
+      ↓  dezelfde database-transactie
+owner_notification_events  (duurzaam gebeurtenisregister, unieke dedup_key)
+      ↓  savepoint binnen dezelfde transactie
+owner_notifications        (bell-readmodel met leesstatus)
+      ↓
+SSE-stroom /api/owner-notifications/stream  (signaal: "er is iets nieuws")
+      ↓
+OwnerNotificationBell      (teller, lijst, markeren als gelezen)
+```
+
+### Vastleggen, materialiseren en herstellen
+
+De registratie van de gebeurtenis en het aanmaken van de melding zijn **twee gescheiden stappen**:
+
+1. **Vastleggen** — het gebeurtenisrecord wordt binnen dezelfde transactie als de hoofdactie opgeslagen, met `ON CONFLICT DO NOTHING` op de `dedup_key`. Daardoor kan een geslaagde hoofdactie nooit stilzwijgend een gebeurtenis verliezen: valt de registratie weg, dan komt de hoofdactie ook niet tot stand, en herhaalde verwerking levert geen tweede melding op.
+2. **Materialiseren** — het aanmaken van de melding in de bell gebeurt binnen een **savepoint** van diezelfde transactie. Een fout in de meldingsopslag raakt daardoor alleen de savepoint: de kernactie blijft slagen. De driver (`neon-serverless`) implementeert een geneste transactie als `SAVEPOINT` met `ROLLBACK TO SAVEPOINT` bij een fout.
+
+Een mislukte materialisatie levert dus geen mislukte kernactie op, maar wel een gebeurtenis zonder melding. Dat gebeurtenisrecord is duurzaam en blijft bestaan nadat de melding na 30 dagen is opgeruimd.
+
+### Herstelpas
+
+De herstelpas (`repairMissingOwnerNotifications()`) zoekt geregistreerde gebeurtenissen zonder melding, bepaalt de weergavetekst opnieuw uit de bijbehorende wachtrij-entry of afspraak en maakt de melding alsnog aan. De herstelactie is idempotent: een tweede run levert geen tweede melding op, omdat de melding per gebeurtenis uniek is (`event_id`).
+
+De herstelpas loopt mee met het ophalen van de meldingenlijst, is best-effort en frequentiebegrensd. De teller en de lijst worden in de UI bijgewerkt via de SSE-stroom; als die stroom niet beschikbaar is, wordt teruggevallen op de gedeelde `PollScheduler` (`src/polling/poll-scheduler.ts`), die overlappende requests, back-off en pauze bij een verborgen tabblad afhandelt.
+
+### Realtime-updates (SSE)
+
+De bell ontvangt updates via een Server-Sent Events-stroom op
+`/api/owner-notifications/stream`. De route is alleen toegankelijk voor de
+ingelogde eigenaar: de identiteit wordt uitsluitend afgeleid uit het
+sessiecookie, nooit uit een door de client opgegeven gebruikers-id.
+
+**Architectuurkeuze: de stroom leest de toestand rechtstreeks uit de
+database.** Er wordt bewust **geen in-memory eventbus** gebruikt. De applicatie
+draait serverless op Vercel, waar een gebeurtenis op een andere instantie
+wordt vastgelegd: bij een in-memory bus zou die melding verloren gaan. De
+database blijft de enige bron van waarheid; de stroom is alleen een signaal
+dat er iets nieuws is. De stroom bezorgt uitsluitend de identiteit van de
+nieuwste melding; de meldingen zelf worden opgehaald via de bestaande
+beveiligde Server Functions, zodat geen notificatiegegevens buiten de
+autorisatielaag terechtkomen.
+
+De stroom controleert met een interval van twee seconden of de nieuwste melding
+of het aantal ongelezen meldingen is veranderd en stuurde dan een minimale
+update (`event: notification`, `data: {"id":"…"}`). Verder stuurt de server
+een `retry`-advies en een heartbeat; de client bewaakt daarom de verbinding en
+verbreekt hem als er te lang geen signaal binnenkomt.
+
+Omdat de stream een signaal is en geen bron van waarheid, haalt de client de
+meldingen bij het openen van de verbinding en bij elke update opnieuw op via
+`getOwnerNotificationsFn()`. Gemiste updates worden daardoor na een reconnect
+alsnog teruggevonden, en dubbele signalen leveren geen dubbele items op: de
+lijst wordt op id ontdubbeld.
+
+Wanneer de stroom niet beschikbaar is, valt de bell terug op de bestaande
+polling (`PollScheduler`). De polling draait alleen wanneer de verbinding
+onderbroken is, zodat een gezonde verbinding geen dubbele belasting veroorzaakt.
+Bij het verbreken van de verbinding worden de timers van de stroom opgeruimd,
+zodat een verbroken verbinding geen resources vast blijft houden.
+
+### Modules
+
+- `src/db/schema/owner-notifications.ts` — schema, relaties en constraints;
+- `src/notifications/owner-notification.events.ts` — pure gebeurtenisbeslissingen en stabiele idempotentiesleutels;
+- `src/notifications/owner-notification.repository.server.ts` — queries, inclusief het vinden van gebeurtenissen zonder melding en de compacte watch-toestand voor de stroom;
+- `src/notifications/owner-notification.service.server.ts` — businesslogica, de koppeling met de wachtrij- en afspraakdomeinen, de savepoint-isolatie en de herstelpas;
+- `src/notifications/owner-notification.functions.ts` — Server Functions met `requireOwner()`;
+- `src/notifications/owner-notification.stream.ts` — client-veilige constanten en hulpfuncties (terugvalvertraging, ontdubbelen, watchdog);
+- `src/notifications/owner-notification.stream-connection.ts` — verbindingsbeheer van de client (openen, herverbinden, heartbeat-controle);
+- `src/notifications/owner-notification.stream.server.ts` — de SSE-stroom zelf;
+- `src/routes/api/owner-notifications.stream.ts` — de route;
+- `src/components/OwnerNotificationBell.tsx` en `src/components/OwnerHeader.tsx` — de bel in de gedeelde owner-header.
+
+### Retentie en verversing
+
+Interne notificaties worden na 30 dagen verwijderd, ongeacht of ze gelezen zijn; de termijn is vast en niet instelbaar. De opruiming loopt mee met het ophalen van de lijst en is best-effort. Het gebeurtenisregister bevat geen weergavetekst en geen persoonsgegevens en wordt daarom niet op leeftijd verwijderd.
+
+### Scheiding met klantenpush
+
+Klantenpush (§28) en eigenaar-notificaties (§29) hebben gescheiden tabellen, services en records. De klantpush blijft queue-entry-gebonden; de interne notificaties hebben daarentegen een duurzaam gebeurtenisregister en een bell-readmodel.

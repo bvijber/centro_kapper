@@ -19,6 +19,11 @@ import type { AppointmentCreateInput, AppointmentListInput, AppointmentModifyInp
 import { acquireAppointmentLock } from './appointment.overlap'
 import { blocksCapacity, isOverlapping } from './appointment.overlap'
 import {
+  recordAppointmentBookedNotification,
+  recordAppointmentCancelledNotification,
+} from '../notifications/owner-notification.service.server'
+import { shouldNotifyAppointmentCancelled } from '../notifications/owner-notification.events'
+import {
   findAppointmentById,
   findCancellationRequestById,
   findCancellationRequestByIdForUpdate,
@@ -325,6 +330,15 @@ export async function createAppointment(input: AppointmentCreateInput, actor: Ap
         entityId: appointment.id,
         metadata: auditMetadata(appointment),
       }, tx)
+      // De melding voor de eigenaar wordt binnen dezelfde transactie
+      // vastgelegd als de afspraak, ook wanneer de eigenaar de afspraak zelf
+      // aanmaakt. Zo kan een geslaagde boeking nooit stilzwijgend een melding
+      // verliezen.
+      await recordAppointmentBookedNotification(tx, {
+        id: appointment.id,
+        customerUserId: appointment.customerUserId,
+        guestName: appointment.guestName,
+      })
       return appointment
     })
   } catch (error) {
@@ -423,9 +437,6 @@ export async function updateAppointmentStatus(id: string, targetStatus: Appointm
         const now = new Date()
         const values: Parameters<typeof updateAppointment>[2] = { status: targetStatus }
         if (targetStatus === 'no_show') {
-          const [settings] = await tx.select({ noShowReleaseBehavior: bookingSettings.noShowReleaseBehavior }).from(bookingSettings).where(eq(bookingSettings.id, 1)).limit(1)
-          if (!settings) throw new AppointmentError('Boekingsinstellingen ontbreken.', 'FAILED')
-          if (settings.noShowReleaseBehavior === 'automatic') values.slotReleasedAt = now
         }
         if (targetStatus === 'completed') values.completedAt = now
         const updated = await updateAppointment(tx, id, values)
@@ -477,6 +488,16 @@ export async function cancelAppointment(id: string, actor: AppointmentMutationAc
           entityId: dto.id,
           metadata: { after: { status: dto.status, cancelledAt: dto.cancelledAt?.toISOString() ?? null } },
         }, tx)
+        // Alleen een daadwerkelijke overgang naar `cancelled` meldt dit aan de
+        // eigenaar. De gebeurtenissleutel is stabiel, zodat een herhaalde
+        // verwerking geen tweede melding oplevert.
+        if (shouldNotifyAppointmentCancelled(appointment.status, dto.status)) {
+          await recordAppointmentCancelledNotification(tx, {
+            id: dto.id,
+            customerUserId: dto.customerUserId,
+            guestName: dto.guestName,
+          })
+        }
         return dto
       })
     })
@@ -720,6 +741,16 @@ export async function approveCancellationRequest(id: string, actor: AppointmentM
             statusAfter: appointmentDto.status,
           },
         }, tx)
+        // Het goedkeuren van een verzoek veroorzaakt een echte overgang naar
+        // `cancelled` en meldt dat aan de eigenaar. Een verzoek zelf levert
+        // geen melding op.
+        if (shouldNotifyAppointmentCancelled(appointment.status, appointmentDto.status)) {
+          await recordAppointmentCancelledNotification(tx, {
+            id: appointmentDto.id,
+            customerUserId: appointmentDto.customerUserId,
+            guestName: appointmentDto.guestName,
+          })
+        }
         return { request: requestDto, appointment: appointmentDto }
       })
     })

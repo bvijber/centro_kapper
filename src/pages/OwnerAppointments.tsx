@@ -1,12 +1,11 @@
-import { Bell, CalendarDays, Check, CheckCircle2, Edit3, Phone, Plus, X } from 'lucide-react'
+import { CalendarDays, Check, CheckCircle2, Edit3, Phone, Plus, X } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
-import { Link } from '@tanstack/react-router'
 import type { AppointmentDTO, BookableServiceDTO, CancellationRequestListItemDTO } from '../appointments/appointment.service.server'
 import { approveCancellationRequestFn, cancelAppointmentFn, createAppointmentFn, getAvailabilityFn, listAppointmentsFn, listBookableServicesFn, listCancellationRequestsFn, modifyAppointmentFn, rejectCancellationRequestFn, updateAppointmentStatusFn } from '../appointments/appointment.functions'
 import { appointmentStatusClass, appointmentStatusLabel, formatPriceCents } from '../appointments/appointment.presentation'
 import { Card } from '../components/Card'
 import { OwnerBottomNav } from '../components/OwnerBottomNav'
-import logo from '../assets/logo_centro_kapper.jpeg'
+import { OwnerHeader } from '../components/OwnerHeader'
 import { addCalendarDays, formatAmsterdamDate, formatAmsterdamDateKey, getAmsterdamDateParts, formatAmsterdamTime } from '../timezone'
 import { publicErrorMessage } from '../components/publicError'
 
@@ -113,10 +112,7 @@ export function OwnerAppointments() {
   const customerName = (appointment: { customerName?: string | null; guestName?: string | null }) => appointment.customerName ?? appointment.guestName ?? 'Gast'
 
   return <main className="page shell staff-page appointments-page">
-    <header className="topbar">
-      <Link to="/owner" className="brand"><img src={logo} alt="Centro Kapper" /><span>Centro <b>Kapper</b></span></Link>
-      <Bell className="staff-bell" size={22} aria-hidden="true" />
-    </header>
+    <OwnerHeader />
     <p className="eyebrow">CENTRO KAPPER · BEHEER</p>
     <div className="staff-heading">
       <div><h1>Afspraken</h1><p>Het volledige schema van Centro Kapper.</p></div>

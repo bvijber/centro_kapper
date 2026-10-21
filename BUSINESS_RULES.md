@@ -4,7 +4,7 @@
 **Versie:** 1.0  
 **Status:** Living Document / Source of Truth  
 **Project:** Centro Kapper  
-**Laatste update:** 2026-09-03
+**Laatste update:** 2026-10-21
 
 ---
 
@@ -211,6 +211,8 @@ De customer kan dan wel een **annuleringsverzoek** indienen bij de barber.
 
 De barber beslist vervolgens wat ermee gebeurt.
 
+Het annuleren van een afspraak levert een interne notificatie voor de eigenaar op (zie §29).
+
 **Status: BESLOTEN**
 
 ---
@@ -369,6 +371,8 @@ De wachtrij is onderdeel van de productfunctionaliteit.
 - Beide komen in dezelfde wachtrij terecht.
 - Bij iedere wachtrij-aanmelding is een **servicekeuze verplicht**.
 
+Een aanmelding door een klant of gast levert een interne notificatie voor de eigenaar op (zie §29). Een walk-in die de eigenaar zelf toevoegt levert geen notificatie op.
+
 ## Volgorde
 
 De wachtrij werkt volgens **FIFO — First In, First Out**:
@@ -427,6 +431,8 @@ De FIFO-volgorde moet daarbij behouden blijven.
 Een klant kan zichzelf **altijd** uit de actieve wachtrij verwijderen.
 
 De historische registratie blijft behouden.
+
+Het verlaten van de wachtrij door een klant of gast levert een interne notificatie voor de eigenaar op (zie §29).
 
 ## Behandeling annuleren
 
@@ -557,10 +563,11 @@ Dit geldt onder andere voor:
 
 De volgende onderwerpen zijn nog niet definitief vastgesteld:
 
-1. notification events;
-2. notification verplicht versus optioneel;
-3. notification preferences;
-4. failed delivery/retry behavior.
+1. notification events buiten Web Push v1 (v1 ondersteunt uitsluitend `called`, zie §28) en buiten Eigenaar-notificaties v1 (zie §29);
+2. algemene user notification preferences buiten de v1 opt-in per wachtrijvermelding (§28) en buiten de expliciete pushopt-ins van Eigenaar-notificaties v1 (§29);
+3. notificatiekanalen buiten Web Push (e-mail en sms zijn geen onderdeel van v1).
+
+Failed delivery/retry behavior is voor Web Push v1 vastgelegd in §28 en voor Eigenaar-notificaties v1 in §29. Afwijkende retry- of bewaarregels voor toekomstige events zijn nog open.
 
 Deze punten mogen niet zelfstandig door een developer of AI-agent worden ingevuld.
 
@@ -586,19 +593,163 @@ Een technische implementatie mag nooit zelfstandig een ontbrekende productbeslis
 
 Het systeem moet relevante operationele en customer notifications kunnen ondersteunen.
 
-### Notification business rules
+De notificatiefunctionaliteit bestaat uit twee gescheiden onderdelen:
 
-De exacte notification types, triggers, timing en user notification preferences zijn nog niet definitief vastgesteld.
+- **Web Push v1** (§28) — pushmeldingen voor klanten in de wachtrij;
+- **Eigenaar-notificaties v1** (§29) — de interne notificatiebel voor de eigenaar en de optionele pushmeldingen voor de eigenaar.
+
+Beide onderdelen hebben elk hun eigen events, retentie, toestemming en foutafhandeling. Wat §28 vastlegt, geldt uitsluitend voor klantenpush en wordt niet uitgebreid door §29; wat §29 vastlegt, geldt uitsluitend voor de eigenaar.
+
+### Notification business rules (Web Push v1)
+
+**Status: BESLOTEN — Web Push v1**
+
+De onderstaande regels zijn definitief voor Web Push v1. De technische implementatie is nog niet uitgevoerd; §28 beschrijft uitsluitend productregels, geen bestaande functionaliteit.
 
 Notifications mogen geen ongeautoriseerde of privacygevoelige informatie aan verkeerde gebruikers leveren.
 
-Notification preferences moeten later als expliciete business rules worden vastgesteld. Een notification capability is daarom geen toestemming om zelfstandig concrete events, reminder-tijden, voorkeuren of deliverygedrag te definiëren.
+#### Notificatiemoment
 
-**Status: OPEN BESLISSING voor concrete notification business rules**
+Web Push v1 verstuurt uitsluitend een notificatie wanneer een wachtrijvermelding daadwerkelijk overgaat naar status `called`. Alleen een nieuwe statusovergang naar `called` activeert de notificatie. Als een klant push pas activeert nadat de vermelding al `called` is, wordt geen notificatie met terugwerkende kracht verstuurd.
 
-### Aanvullende open beslissingen
+#### Opt-in en toestemming
 
-- Welke notification events moeten worden ondersteund?
-- Welke notifications zijn verplicht versus optioneel?
-- Welke user notification preferences zijn configureerbaar?
-- Hoe moeten failed deliveries en retries worden behandeld?
+De klant activeert push expliciet via een knop op de eigen wachtrijpagina. Browsertoestemming wordt uitsluitend na die expliciete gebruikersactie gevraagd, nooit automatisch bij het laden of bezoeken van een pagina. De wachtrij blijft bruikbaar als push niet wordt ondersteund, niet is toegestaan of niet wordt geactiveerd. De klant kan push vanuit de wachtrijpagina uitschakelen en kan daarnaast de browsertoestemming via de browserinstellingen intrekken.
+
+#### Inhoud van de notificatie
+
+De notificatie gebruikt exact deze generieke tekst:
+
+- Titel: `Centro Kapper`
+- Bericht: `Je bent aan de beurt. Open de app voor meer informatie.`
+
+De pushpayload bevat geen klantnamen, contactgegevens, guest-capabilities, geheime tokens of andere persoonsgegevens.
+
+#### Idempotentie en apparaten
+
+Er bestaat maximaal één logische notificatie per combinatie van wachtrijvermelding en statusovergang naar `called`. Meerdere apparaten/subscriptions per wachtrijvermelding zijn toegestaan en elke actieve gekoppelde subscription mag de notificatie ontvangen, maar meerdere apparaten betekenen niet dat dezelfde logische notificatie opnieuw mag worden aangemaakt. Er wordt onderscheid gemaakt tussen een logische notificatie, een verzendpoging en daadwerkelijke aflevering: een succesvolle verzendaanroep garandeert niet dat de browser de melding heeft getoond.
+
+#### Gasten en accounts
+
+Web Push v1 ondersteunt zowel gasten als klanten met een account. Elke subscription wordt gekoppeld aan één specifieke wachtrijvermelding. Voor gasten gelden de bestaande guest-capability-flow en toegangsbeveiliging. Een guest-capability of ander geheim wordt nooit opgenomen in de pushpayload of een publiek toegankelijke URL. De notification-click opent de veilige app-flow voor de bijbehorende wachtrijvermelding; de toegang wordt via de bestaande autorisatie- en capability-mechanismen afgehandeld.
+
+#### Verzendfouten en retries
+
+Maximaal drie verzendpogingen in totaal per subscription en logische notificatie, inclusief de eerste poging. Alleen tijdelijke fouten mogen opnieuw worden geprobeerd; permanente fouten worden niet opnieuw geprobeerd. Een ongeldig of verlopen subscription-resultaat leidt tot deactivering van die subscription. Retries zijn begrensd en idempotent en creëren geen nieuwe logische notificatie. De implementatie maakt onderscheid tussen tijdelijke en permanente foutcategorieën.
+
+#### Minimale registratie en bewaartermijn
+
+Alleen noodzakelijke technische gegevens worden bewaard, waaronder wachtrijvermelding en event, idempotentiesleutel, verzendstatus, aantal pogingen, tijdstempels en noodzakelijke foutcategorieën. Volledige pushpayloads of onnodige persoonsgegevens worden niet bewaard. Verzendregistraties worden maximaal 30 dagen bewaard en daarna automatisch opgeruimd.
+
+#### Einde van een wachtrijvermelding
+
+De subscription die aan een wachtrijvermelding is gekoppeld, wordt automatisch gedeactiveerd wanneer die vermelding de status `completed`, `cancelled` of `skipped` krijgt. Een nieuwe wachtrijvermelding vereist een eigen expliciete pushactivatie.
+
+#### Geen fallback naar andere kanalen
+
+Web Push v1 introduceert geen e-mail- of sms-notificaties. Wanneer push niet beschikbaar is of toestemming ontbreekt, blijft de wachtrijpagina de actuele informatie tonen: positie in de wachtrij, aantal wachtenden en geschatte wachttijd.
+
+#### Implementatiestatus
+
+De productregels hierboven zijn afgesproken, maar de volledige Web Push-functionaliteit is nog niet geïmplementeerd. De volgende technische onderdelen moeten later afzonderlijk worden gepland en uitgevoerd en worden hier niet als aanwezig beschreven: keuze en installatie van een Web Push-library; databaseschema en migratie voor subscriptions en notificatieregistraties; server-only VAPID-configuratie; service-worker-handlers voor push en notification-click; opt-in- en uitschakelinterface; veilige subscriptionregistratie en -deactivering; dispatch bij `called`; idempotentie, retrybeleid en opschoning; automatische opschoning na 30 dagen; autorisatie-, privacy-, security- en integratietests; bijbehorende architectuur- en database-documentatie.
+
+---
+
+## 29. Eigenaar-notificaties v1
+
+**Status: BESLOTEN — Eigenaar-notificaties v1**
+
+Deze paragraaf is de bron van waarheid voor alle meldingen die de **eigenaar** ontvangt. Klantenpush blijft volledig geregeld in §28 en wordt door deze paragraaf niet gewijzigd.
+
+De technische implementatie is nog niet uitgevoerd; §29 beschrijft uitsluitend productregels, geen bestaande functionaliteit.
+
+### Onderdelen
+
+De eigenaar-notificatie bestaat uit twee onderdelen:
+
+1. **Interne notificatiebel** — een afgeschermde, in-app meldingenlijst met ongelezen teller in het eigenaarsgedeelte van de applicatie;
+2. **Optionele pushmeldingen voor de eigenaar** — Web Push naar de eigen apparaten van de eigenaar.
+
+De interne bel is altijd beschikbaar. Push is optioneel en wordt door de eigenaar per apparaat ingeschakeld.
+
+### Gebeurtenissen
+
+De eigenaar ontvangt een interne notificatie bij:
+
+1. **Nieuwe wachtrij-inschrijving** — een klant of gast meldt zich zelf aan in de wachtrij;
+2. **Nieuwe afspraak** — er wordt een afspraak geboekt;
+3. **Annulering** — een afspraak gaat over naar de status `cancelled`;
+4. **Klant verlaat de wachtrij** — een klant of gast verlaat de actieve wachtrij.
+
+Het triggerpunt van een gebeurtenis is de daadwerkelijke statusovergang, niet de plek waar de gebruiker op klikte. Een annulering is daarmee iedere daadwerkelijke overgang van een afspraak naar de status `cancelled`, ongeacht of de klant, de eigenaar of een goedgekeurd annuleringsverzoek die overgang veroorzaakt.
+
+Een afzonderlijke statusovergang wordt **maximaal één keer** als gebeurtenis geregistreerd. Een annuleringsverzoek of een goedkeuring die niet tot een nieuwe statusovergang leidt, levert zelfstandig geen extra gebeurtenis op voor dezelfde overgang.
+
+Overige gebeurtenissen, zoals het oproepen, starten of afronden van een wachtrij-entry, leveren in v1 geen notificatie voor de eigenaar op.
+
+### Geen melding bij walk-in door de eigenaar zelf
+
+Wanneer de eigenaar zelf een walk-in aanmaakt, ontstaat **geen** notificatie. De eigenaar is al op de hoogte; een melding zou dubbel zijn.
+
+Een melding ontstaat uitsluitend bij een aanmelding die door een klant of gast zelf is gedaan.
+
+### Inhoud en privacy
+
+- De **interne notificatiebel** mag de klantnaam bevatten. De bel is uitsluitend zichtbaar voor de eigenaar.
+- **Pushmeldingen voor de eigenaar bevatten geen klantnaam en geen andere persoonsgegevens** — geen naam, geen telefoonnummer, geen e-mailadres, geen notities en geen herleidbare koppeling naar een specifieke klant, afspraak of wachtrij-entry. Dit is dezelfde privacyregel als voor klantenpush in §28.
+- Notificaties bevatten geen secrets, capability-tokens of andere geheimen.
+
+### Lezen en beheren
+
+- Klikken op een notificatie **markeert deze als gelezen** en **opent de relevante pagina**.
+- Daarnaast is **alles als gelezen markeren** beschikbaar.
+- Alleen de **eigenaar** mag zijn notificaties beheren. Notificaties van de eigenaar zijn niet inzichtelijk voor klanten, gasten of andere gebruikers.
+- Het beheren van notificaties is een server-side bevoegdheid. Een verborgen of uitgeschakelde UI is geen autorisatie.
+
+### Retentie
+
+- De bewaartermijn van de interne eigenaar-notificaties is **vast: 30 dagen**. De eigenaar kan deze niet wijzigen.
+- Notificaties worden na 30 dagen **automatisch verwijderd**, ongeacht of ze gelezen of ongelezen zijn.
+- Er is **geen** optie of instelling voor onbeperkte bewaring en geen andere retentie-instelling. De technische pushgegevens van de eigenaar volgen de aparte regels in *Technische pushgegevens*; de bewaartermijn voor klantenpush blijft zoals vastgelegd in §28.
+
+### Technische pushgegevens
+
+Deze regels gelden uitsluitend voor de technische gegevens van **eigenaarpush**. De bewaartermijn en de werking van klantenpush blijven zoals vastgelegd in §28.
+
+- Verzendregistraties worden **uitsluitend bewaard zolang ze nodig zijn** voor verzending, retries, herstel en deduplicatie. Zodra ze die rol hebben vervuld, worden ze veilig opgeschoond.
+- Voor deze technische gegevens geldt **geen vaste bewaartermijn**. Het moment van opschoning volgt uit het gebruik, niet uit een termijn.
+- Tijdelijke claims, locks en verlopen herstelgegevens worden opgeschoond **zodra dat veilig kan**. Een lopende of nog herstelbare toestand wordt niet voortijdig verwijderd.
+- **Actieve, geldige pushabonnementen worden bewaard zolang ze nodig zijn voor verzending.** Zij zijn geen notificatiehistorie en worden niet verwijderd uitsluitend vanwege de bewaartermijn van notificaties.
+
+### Eigenaarpush
+
+- Eigenaarpush is **optioneel**.
+- Push vereist **expliciete toestemming** van de eigenaar, gegeven vanuit een expliciete gebruikersactie. Toestemming wordt nooit automatisch gevraagd bij het openen, bezoeken of herladen van een pagina.
+- De eigenaar kan push **per apparaat uitschakelen**. Meerdere apparaten worden ondersteund: elk ingeschakeld apparaat ontvangt dezelfde melding, en het uitschakelen van één apparaat heeft geen invloed op de andere apparaten.
+- **Er is geen stilteperiode in v1.** De eigenaar kan push per apparaat uitschakelen; een tijd- of dagvenster waarin geen push wordt verstuurd bestaat niet in v1.
+- Wanneer push niet wordt ondersteund, niet is toegestaan of niet is ingeschakeld, blijft de interne notificatiebel volledig beschikbaar en is de bel het enige kanaal.
+
+### Annuleringen
+
+Annuleringen verschijnen in de interne notificatiebel en worden **via push gemeld wanneer push is ingeschakeld**. Zonder ingeschakelde push blijft de annulering zichtbaar in de bel.
+
+### Foutafhandeling
+
+- Een notificatie- of pushfout mag de **kernactie niet laten mislukken**. Het aanmelden in de wachtrij, het boeken van een afspraak, het annuleren van een afspraak en het verlaten van de wachtrij slagen ook wanneer het aanmaken of versturen van een melding mislukt.
+- De uitkomst van een mislukte melding blijft intern vastgelegd, zodat herstel achteraf mogelijk is. De gebruiker ziet daarvan niets in de kernflow.
+
+### Idempotentie
+
+- Het aanmaken van een notificatie is **idempotent**. Een herhaalde aanroep of een retry van dezelfde gebeurtenis levert **één** notificatie op, niet meerdere.
+- Bij een afspraakannulering is de gebeurtenis gekoppeld aan de statusovergang zelf: één overgang naar `cancelled` levert precies één gebeurtenis op (zie Gebeurtenissen).
+- Meerdere apparaten betekenen niet dat dezelfde logische notificatie opnieuw wordt aangemaakt: één logische notificatie kan naar meerdere apparaten worden verstuurd.
+
+### Scheiding met klantenpush
+
+- Klantenpush (§28) en eigenaarpush (§29) zijn **volledig gescheiden**: eigen subscriptions, eigen events, eigen retentie en eigen foutafhandeling.
+- Een klantabonnement ontvangt nooit een eigenaarsmelding en een eigenaarabonnement nooit een klantmelding.
+
+### Automatische verversing
+
+- De notificatiebel **ververst automatisch**. De ongelezen teller en de meldingenlijst worden zonder handmatige actie bijgewerkt.
+- Automatische verversing is alleen-lezen en verandert de leesstatus niet. Alleen een expliciete actie van de eigenaar markeert notificaties als gelezen.

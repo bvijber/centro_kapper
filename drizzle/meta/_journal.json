@@ -78,6 +78,20 @@
       "when": 1790968790144,
       "tag": "0010_single_owner",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1792146256044,
+      "tag": "0011_premium_the_liberteens",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1792586998888,
+      "tag": "0012_dazzling_roland_deschain",
+      "breakpoints": true
     }
   ]
 }

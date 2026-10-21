@@ -5,8 +5,8 @@ import { useAuth } from '../auth/AuthContext'
 import { Card } from '../components/Card'
 import { getOwnerDashboardFn } from '../dashboard/dashboard.functions'
 import type { OwnerDashboardDTO } from '../dashboard/dashboard.service.server'
-import logo from '../assets/logo_centro_kapper.jpeg'
 import { OwnerBottomNav } from '../components/OwnerBottomNav'
+import { OwnerHeader } from '../components/OwnerHeader'
 import { publicErrorMessage } from '../components/publicError'
 
 function errorMessage(caught: unknown): string {
@@ -33,10 +33,7 @@ export function OwnerDashboard() {
     : `${metrics.revenueDeltaPercent >= 0 ? '+' : ''}${metrics.revenueDeltaPercent}% ten opzichte van vorige maand`
 
   return <main className="page shell staff-page owner-dashboard-page">
-    <header className="topbar">
-      <div className="brand"><img src={logo} alt="Centro Kapper" /><span>Centro <b>Kapper</b></span></div>
-      <span className="staff-label">EIGENAAR</span>
-    </header>
+    <OwnerHeader />
     <p className="eyebrow">CENTRO KAPPER · BEHEER</p>
     <h1 className="staff-title">Goedemorgen,<br /><em>{user?.name}.</em></h1>
     {error && <p className="form-error" role="alert">{error}</p>}

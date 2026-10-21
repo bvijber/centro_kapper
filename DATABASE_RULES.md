@@ -73,6 +73,7 @@ De bestaande server-only conventie gebruikt onder andere `client.server.ts`. Nie
 - audit logs;
 - business profile, opening hours en breaks;
 - enums;
+- owner notifications (interne eigenaar-notificaties);
 - profiles;
 - rate limits;
 - services;
@@ -168,6 +169,14 @@ Deze migration breidt appointments uit met buffer snapshot, no-show slot release
 ### `drizzle/0007_tense_spectrum.sql`, `0008_owner_backfill.sql`, `0009_owner_profiles.sql`, `0010_single_owner.sql`
 
 Deze owner-only reeks voegt de `owner`-rol toe aan `user_role`, converteert bestaande `staff`-rijen naar `owner`, hernoemt `staff_profiles` naar `owner_profiles` en legt de single-owner garantie vast met `users_single_owner_idx`. De `staff`-waarde blijft in het enum staan als historische compatibiliteit en biedt geen runtime-authorisatie. De unieke index faalt expliciet wanneer er meerdere owner-accounts bestaan, zodat de invariant niet stil wordt overschreven.
+
+### `drizzle/0011_premium_the_liberteens.sql`
+
+Deze migration maakt de Web Push v1-persistentie aan: `push_subscriptions` (koppeling aan wachtrij-entry en optionele klant, uniek endpoint, server-side sleutelmateriaal, active/deactiveer-status), `push_notifications` (logische notificatie met deterministische unieke idempotency key, zonder payload of persoonsgegevens) en `push_notification_deliveries` (delivery per notificatie/subscription-combinatie met begrensde attempt-teller, claim-metadata en foutcategorie). Alle relaties gebruiken foreign keys met `ON DELETE CASCADE`, behalve de optionele klantrelatie (`ON DELETE SET NULL`); pogingen zijn database-begrensd op maximaal drie. De migration bevat uitsluitend de nieuwe tabellen; bestaande tabellen worden niet gewijzigd.
+
+### `drizzle/0012_dazzling_roland_deschain.sql`
+
+Deze migration maakt de persistentie voor interne eigenaar-notificaties aan: `owner_notification_events` (duurzaam gebeurtenisregister met een deterministische unieke `dedup_key`, de ontvanger en de entiteitsverwijzing) en `owner_notifications` (bell-readmodel met titel, tekst en `read_at`). Beide tabellen verwijzen naar `users` met `ON DELETE CASCADE`; `owner_notifications.event_id` verwijst met `ON DELETE CASCADE` naar het gebeurtenisregister. Er zijn database-constraints op `event`, `entity_type` en op de uniciteit van `dedup_key` en `event_id`. De migration bevat uitsluitend de nieuwe tabellen; bestaande tabellen worden niet gewijzigd.
 
 ### Metadata
 
@@ -715,9 +724,9 @@ De bestaande schema’s bieden hiervoor gedeeltelijk een basis, maar de bijbehor
 
 De database moet de volgende open beslissingen kunnen ondersteunen zonder zelf waarden te definiëren:
 
-1. notification events;
-2. notification preferences;
-3. failed delivery/retry behavior.
+1. notification events buiten Web Push v1 (§28) en Eigenaar-notificaties v1 (§29);
+2. notification preferences buiten de vastgelegde opt-ins en instellingen;
+3. failed delivery/retry behavior voor die toekomstige events.
 
 Deze waarden zijn nog niet definitief. Er worden in schema, seed data of constraints geen concrete standaardwaarden voor deze beslissingen verzonnen.
 
@@ -747,22 +756,29 @@ Deze waarden zijn nog niet definitief. Er worden in schema, seed data of constra
 
 ## 34. Push subscriptions en device registrations
 
-**MISSING/FUTURE — DATABASE REQUIREMENT**
+**CURRENT**
 
-De database moet uiteindelijk persistent kunnen ondersteunen:
+De database ondersteunt persistentie voor Web Push v1 via drie tabellen in `src/db/schema/push-subscriptions.ts` (migration `0011_premium_the_liberteens.sql`):
 
-- associatie met een user;
-- identificatie van subscription en device;
-- push endpoint- en subscriptiongegevens;
-- platforminformatie wanneer dit technisch noodzakelijk is;
-- creation- en update-timestamps;
-- last-used- of last-successful-delivery-informatie wanneer nodig;
-- actieve en inactieve subscriptions;
-- invalid of expired subscriptions;
-- meerdere subscriptions per user.
+- `push_subscriptions`: koppeling aan één wachtrijvermelding (`queue_entry_id`, `ON DELETE CASCADE`) en optioneel aan een ingelogde klant (`customer_user_id`, `ON DELETE SET NULL`); uniek endpoint; server-side `p256dh_key` en `auth_key`; `active`-status met deactiveer-timestamp en reden; meerdere subscriptions per entry zijn toegestaan; gasten worden via de entry-koppeling ondersteund.
+- `push_notifications`: één logische notificatie per queue-overgang met deterministische unieke `idempotency_key`; status (`pending`, `sending`, `sent`, `failed`, `expired`, `invalid`); geen payload, persoonsgegevens of secrets.
+- `push_notification_deliveries`: één delivery per notificatie/subscription-combinatie (uniek); status, pogingenteller database-begrensd op maximaal drie, `next_attempt_at`, foutcategorie, `claim_token` en `claimed_at` voor fencing; index op status en volgende poging voor dispatch en stale recovery.
 
-Dit is een database requirement en architectural constraint, geen definitief schema. Exacte tabelnaam, kolommen, constraints en retentionregels zijn nog niet vastgesteld. Er wordt voor deze requirement geen migration gemaakt.
+Gevoelige subscriptiongegevens blijven server-side. Credentials en secrets worden nooit client-side opgeslagen. Invalid subscriptions worden gedeactiveerd. Verzendregistraties worden maximaal 30 dagen bewaard conform `BUSINESS_RULES.md` §28; opschoning volgt via het afgesproken cleanup-proces.
 
-Gevoelige subscriptiongegevens moeten passend worden beschermd. Credentials en secrets mogen nooit client-side worden opgeslagen. Het ontwerp moet rekening houden met de volledige subscription lifecycle, waarbij invalid subscriptions kunnen worden gedeactiveerd of verwijderd. Notification delivery state mag niet uitsluitend in de browser worden bijgehouden.
+---
 
-Notification records of delivery logging kunnen later nodig blijken, maar zijn geen definitieve tabelvereiste zolang de notification business rules nog niet zijn vastgesteld.
+## 35. Interne eigenaar-notificaties
+
+**CURRENT**
+
+De database ondersteunt interne eigenaar-notificaties via twee tabellen in `src/db/schema/owner-notifications.ts` (migration `0012_dazzling_roland_deschain.sql`):
+
+- `owner_notification_events`: het duurzame gebeurtenisregister. Per gebeurtenis één rij met een deterministische unieke `dedup_key` (event plus entiteits-id), de ontvanger (`recipient_user_id`) en de entiteitsverwijzing (`entity_type` en `entity_id`). Dit register bevat geen weergavetekst en geen persoonsgegevens en wordt niet op leeftijd verwijderd, zodat een herhaalde verwerking van dezelfde gebeurtenis ook na het opruimen van oude meldingen een duplicaat blijft herkennen.
+- `owner_notifications`: het bell-readmodel met titel, tekst, `read_at` en timestamps. Per gebeurtenis is er hoogstens één melding (`event_id` uniek). Een geregistreerd gebeurtenis zonder meldingsrij is een gebeurtenis dat nog hersteld moet worden.
+
+Beide tabellen verwijzen naar `users` met `ON DELETE CASCADE`; `owner_notifications.event_id` verwijst met `ON DELETE CASCADE` naar het gebeurtenisregister. Er zijn `CHECK`-constraints op `event` en `entity_type`, en indexen voor de teller plus lijst (`recipient_user_id`, `read_at`, `created_at`) en voor de opschoning (`created_at`).
+
+**DATABASE RULE**
+
+De bewaartermijn van interne meldingen is 30 dagen, ongeacht of ze gelezen zijn, en is niet instelbaar (`BUSINESS_RULES.md` §29). Opruiming verwijdert uitsluitend rijen uit `owner_notifications`; het gebeurtenisregister blijft intact. Er worden geen payload-, secret-, capability- of pushvelden opgeslagen.

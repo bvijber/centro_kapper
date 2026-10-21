@@ -7,8 +7,8 @@ import { useAuth } from '../auth/AuthContext'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { OwnerBottomNav } from '../components/OwnerBottomNav'
+import { OwnerHeader } from '../components/OwnerHeader'
 import { publicErrorMessage } from '../components/publicError'
-import logo from '../assets/logo_centro_kapper.jpeg'
 
 function errorMessage(caught: unknown): string {
   return publicErrorMessage(caught)
@@ -66,7 +66,7 @@ export function OwnerProfile() {
   }
 
   return <main className="page shell profile-page owner-profile-page">
-    <header className="topbar"><div className="brand"><img src={logo} alt="Centro Kapper" /><span>Centro <b>Kapper</b></span></div><span className="staff-label">EIGENAAR</span></header>
+    <OwnerHeader />
     <p className="eyebrow">Profiel</p>
     <h1 className="staff-title">Beheer je<br /><em>account en salon</em></h1>
     {error && <p className="form-error" role="alert">{error}</p>}
