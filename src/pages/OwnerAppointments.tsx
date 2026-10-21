@@ -1,12 +1,14 @@
 import { CalendarDays, Check, CheckCircle2, Edit3, Phone, Plus, X } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import type { AppointmentDTO, BookableServiceDTO, CancellationRequestListItemDTO } from '../appointments/appointment.service.server'
-import { approveCancellationRequestFn, cancelAppointmentFn, createAppointmentFn, getAvailabilityFn, listAppointmentsFn, listBookableServicesFn, listCancellationRequestsFn, modifyAppointmentFn, rejectCancellationRequestFn, updateAppointmentStatusFn } from '../appointments/appointment.functions'
+import { approveCancellationRequestFn, cancelAppointmentFn, createAppointmentFn, getAvailabilityFn, listBookableServicesFn, modifyAppointmentFn, rejectCancellationRequestFn, updateAppointmentStatusFn } from '../appointments/appointment.functions'
+import { APPOINTMENTS_POLL_INTERVAL_MS, fetchAppointmentsSnapshot } from '../appointments/appointment.polling'
 import { appointmentStatusClass, appointmentStatusLabel, formatPriceCents } from '../appointments/appointment.presentation'
 import { Card } from '../components/Card'
 import { OwnerBottomNav } from '../components/OwnerBottomNav'
 import { OwnerHeader } from '../components/OwnerHeader'
 import { addCalendarDays, formatAmsterdamDate, formatAmsterdamDateKey, getAmsterdamDateParts, formatAmsterdamTime } from '../timezone'
+import { usePageRefresh } from '../polling/use-page-refresh'
 import { publicErrorMessage } from '../components/publicError'
 
 type Slot = { date: string; time: string; startsAt: string; endsAt: string }
@@ -30,23 +32,31 @@ export function OwnerAppointments() {
   const [creating, setCreating] = useState(false)
   const [overlap, setOverlap] = useState<{ appointment: AppointmentDTO; serviceId: string; localDate: string; localTime: string; overrides: OverrideFlags } | null>(null)
 
+  // Afspraken en annuleringsverzoeken ververst automatisch, zodat
+  // boekingen en statuswijzigingen van klanten zichtbaar worden zonder
+  // paginarefresh. De achtergrondverversing is stil en past alleen toe
+  // wanneer de inhoud werkelijk veranderd is.
+  const refresh = usePageRefresh({
+    load: fetchAppointmentsSnapshot,
+    apply: (snapshot) => {
+      setAppointments(snapshot.appointments)
+      setPendingRequests(snapshot.requests)
+    },
+    setLoading,
+    setError,
+    errorMessage,
+    fallbackErrorMessage: 'De afspraken konden niet worden geladen.',
+    intervalMs: APPOINTMENTS_POLL_INTERVAL_MS,
+  })
+
   const load = async () => {
-    setLoading(true)
     setError('')
-    try {
-      const [appointmentsResult, requestsResult, servicesResult] = await Promise.all([
-        listAppointmentsFn({ data: {} }),
-        listCancellationRequestsFn({ data: {} }),
-        listBookableServicesFn({ data: undefined }),
-      ])
-      setAppointments(appointmentsResult)
-      setPendingRequests(requestsResult)
-      setServices(servicesResult)
-    } catch (caught) {
-      setError(errorMessage(caught))
-    } finally {
-      setLoading(false)
-    }
+    await Promise.all([
+      refresh.loadInteractive(),
+      listBookableServicesFn({ data: undefined })
+        .then(setServices)
+        .catch((caught) => setError(errorMessage(caught))),
+    ])
   }
 
   useEffect(() => { void load() }, [])

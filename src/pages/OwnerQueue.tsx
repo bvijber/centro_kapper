@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { listBookableServicesFn } from '../appointments/appointment.functions'
-import { cancelQueueEntryFn, callQueueEntryFn, completeQueueEntryFn, joinQueueFn, listOwnerQueueFn, rejoinQueueEntryFn, skipQueueEntryFn, startQueueServiceFn } from '../queue/queue.functions'
+import { cancelQueueEntryFn, callQueueEntryFn, completeQueueEntryFn, joinQueueFn, rejoinQueueEntryFn, skipQueueEntryFn, startQueueServiceFn } from '../queue/queue.functions'
+import { OWNER_QUEUE_POLL_INTERVAL_MS, fetchOwnerQueueSnapshot } from '../queue/owner-queue.polling'
 import type { QueueEntryDTO } from '../queue/queue.service.server'
-import { formatAmsterdamDateKey, formatAmsterdamTime } from '../timezone'
+import { formatAmsterdamTime } from '../timezone'
+import { usePageRefresh } from '../polling/use-page-refresh'
 import { Card } from '../components/Card'
 import { OwnerBottomNav } from '../components/OwnerBottomNav'
 import { OwnerHeader } from '../components/OwnerHeader'
@@ -17,20 +19,35 @@ export function OwnerQueue() {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(true)
+  // De wachtrij ververst automatisch, zodat klantinschrijvingen en
+  // vertrekkende klanten zichtbaar worden zonder paginarefresh. De
+  // achtergrondverversing is stil en past alleen toe wanneer de inhoud
+  // werkelijk veranderd is.
+  const refresh = usePageRefresh({
+    load: fetchOwnerQueueSnapshot,
+    apply: (snapshot) => setEntries(snapshot.entries),
+    setLoading,
+    setError,
+    errorMessage: () => 'De wachtrij kon niet worden geladen.',
+    intervalMs: OWNER_QUEUE_POLL_INTERVAL_MS,
+  })
   const load = async () => {
-    setLoading(true)
-    try {
-      const date = formatAmsterdamDateKey(new Date())
-      const [queue, available] = await Promise.all([listOwnerQueueFn({ data: { queueDate: date } }), listBookableServicesFn({ data: undefined })])
-      setEntries(queue)
-      setServices(available)
-      setServiceId((current) => current || available[0]?.id || '')
-    } finally {
-      setLoading(false)
-    }
+    setError('')
+    await Promise.all([
+      refresh.loadInteractive(),
+      listBookableServicesFn({ data: undefined })
+        .then((available) => {
+          setServices(available)
+          setServiceId((current) => current || available[0]?.id || '')
+        })
+        .catch(() => setError('De diensten konden niet worden geladen.')),
+    ])
   }
-  useEffect(() => { void load().catch(() => setError('De wachtrij kon niet worden geladen.')) }, [])
-  const action = async (work: () => Promise<unknown>, text: string) => { try { await work(); await load(); setMessage(text); setError('') } catch { setError('De actie kon niet worden uitgevoerd.') } }
+  useEffect(() => { void load() }, [])
+  // `load()` wist de foutmelding aan het begin van de lading. Daarom wordt
+  // de foutmelding hier niet meer leeggemaakt: anders zou een mislukte
+  // herlaadfout direct door het succesbericht worden verborgen.
+  const action = async (work: () => Promise<unknown>, text: string) => { try { await work(); await load(); setMessage(text) } catch { setError('De actie kon niet worden uitgevoerd.') } }
   const addWalkIn = async () => { if (!guestName.trim() || !guestPhone.trim() || !serviceId) return setError('Naam, telefoon en service zijn verplicht.'); await action(() => joinQueueFn({ data: { serviceId, guestName: guestName.trim(), guestPhone: guestPhone.trim() } }), 'Walk-in toegevoegd.'); setGuestName(''); setGuestPhone('') }
   return <main className="page shell staff-page owner-queue-page">
     <OwnerHeader />

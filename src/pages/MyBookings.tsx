@@ -2,7 +2,9 @@ import { CheckCircle2, Clock3, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import type { AppointmentDTO, BookableServiceDTO, CancellationRequestListItemDTO } from '../appointments/appointment.service.server'
-import { cancelAppointmentFn, getAvailabilityFn, listAppointmentsFn, listBookableServicesFn, listCancellationRequestsFn, modifyAppointmentFn, requestCancellationFn, withdrawCancellationRequestFn } from '../appointments/appointment.functions'
+import { cancelAppointmentFn, getAvailabilityFn, listBookableServicesFn, modifyAppointmentFn, requestCancellationFn, withdrawCancellationRequestFn } from '../appointments/appointment.functions'
+import { APPOINTMENTS_POLL_INTERVAL_MS, fetchAppointmentsSnapshot } from '../appointments/appointment.polling'
+import { usePageRefresh } from '../polling/use-page-refresh'
 import { BottomNav } from '../components/BottomNav'
 import { BookingCard } from '../components/BookingCard'
 import { Button } from '../components/Button'
@@ -36,21 +38,26 @@ export function MyBookings() {
     return map
   }, [requests])
 
+  // De afspraken ververst automatisch, zodat statuswijzigingen door de
+  // kapper zichtbaar worden zonder dat de klant hoeft te vernieuwen. De
+  // achtergrondverversing is stil en past alleen toe wanneer de inhoud
+  // werkelijk veranderd is.
+  const refresh = usePageRefresh({
+    load: fetchAppointmentsSnapshot,
+    apply: (snapshot) => {
+      setAppointments(snapshot.appointments)
+      setRequests(snapshot.requests)
+    },
+    setLoading,
+    setError,
+    errorMessage,
+    fallbackErrorMessage: 'Je afspraken konden niet worden geladen.',
+    intervalMs: APPOINTMENTS_POLL_INTERVAL_MS,
+  })
+
   const load = async () => {
-    setLoading(true)
     setError('')
-    try {
-      const [appointmentsResult, requestsResult] = await Promise.all([
-        listAppointmentsFn({ data: {} }),
-        listCancellationRequestsFn({ data: {} }),
-      ])
-      setAppointments(appointmentsResult)
-      setRequests(requestsResult)
-    } catch (caught) {
-      setError(errorMessage(caught))
-    } finally {
-      setLoading(false)
-    }
+    await refresh.loadInteractive()
   }
 
   useEffect(() => { void load() }, [])
