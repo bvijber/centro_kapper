@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { Outlet, createRootRoute, HeadContent, Scripts } from '@tanstack/react-router'
+import { Outlet, createRootRoute, HeadContent, Scripts, type ErrorComponentProps } from '@tanstack/react-router'
 import { AuthProvider } from '../auth/AuthContext'
 import '../styles/theme.css'
 
@@ -11,7 +11,7 @@ function RootComponent() {
   return <RootDocument><AuthProvider><Outlet /></AuthProvider></RootDocument>
 }
 
- function RootError({ error: _error }: { error: Error }) {
+ function RootError({ error: _error }: ErrorComponentProps) {
   return <main className="page shell"><p className="eyebrow">CENTRO KAPPER</p><h1>Er ging iets mis.</h1><p className="lead">Probeer het opnieuw. Als het probleem blijft bestaan, neem dan contact op met de eigenaar.</p></main>
 }
 
