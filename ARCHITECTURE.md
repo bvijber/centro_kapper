@@ -918,3 +918,173 @@ Interne notificaties worden na 30 dagen verwijderd, ongeacht of ze gelezen zijn;
 ### Scheiding met klantenpush
 
 Klantenpush (§28) en eigenaar-notificaties (§29) hebben gescheiden tabellen, services en records. De klantpush blijft queue-entry-gebonden; de interne notificaties hebben daarentegen een duurzaam gebeurtenisregister en een bell-readmodel.
+
+---
+
+## 38. Eigenaarpush
+
+**CURRENT**
+
+Eigenaarpush (`BUSINESS_RULES.md` §29 "Eigenaarpush") is de pushvariant van de
+interne eigenaar-notificaties uit §37. Het kanaal is volledig gescheiden van de
+klantenpush (§28): eigen abonnementen, eigen deliveries, eigen service, eigen
+dispatch en eigen serverfuncties. Een klantabonnement ontvangt nooit een
+eigenaarsmelding en een eigenaarabonnement nooit een klantmelding.
+
+```text
+Businessactie (wachtrij of afspraak)
+      ↓  dezelfde database-transactie
+owner_notification_events  (duurzaam gebeurtenisregister = pushintentie)
+      ↓  post-commit hook
+ensureOwnerPushDeliveries()  (event × actief apparaat, idempotent)
+      ↓
+owner_push_deliveries      (status, pogingen, claim-token, retry)
+      ↓  web-push
+owner_push_subscriptions   (per apparaat; endpoint is de apparaatidentiteit)
+      ↓
+Service Worker (kind-discriminator) → /owner
+```
+
+### Pushintentie en deduplicatie
+
+De pushintentie is het bestaande, duurzame gebeurtenisregister uit §37. Er is
+geen aparte intent-tabel nodig: de gebeurtenis *is* de intentie en de
+`dedup_key` blijft bestaan nadat de bell-melding na 30 dagen is opgeruimd.
+De ontdubbeling gebeurt op de unieke combinatie van gebeurtenis en abonnement
+(`owner_push_deliveries.event_id` + `subscription_id`), waardoor herhaalde
+verwerking, retries en een tweede dispatch nooit een tweede melding op het
+zelfde apparaat opleveren.
+
+De deliveries worden aangemaakt met `ON CONFLICT DO NOTHING`. De aanmaak is
+daarmee idempotent en herstelbaar: een gebeurtenis dat door een storing geen
+delivery opleverde, krijgt die bij een latere run alsnog.
+
+### Post-commit hook
+
+De businessactie legt de gebeurtenis binnen dezelfde transactie vast. Het
+versturen kan pas na het committen, omdat een delivery in een nog openstaande
+transactie niet zichtbaar is voor de dispatcher. Daarom roepen de wachtrij-
+en afspraakservices na hun transactie `notifyOwnerPush()` aan
+(`src/push/owner-push.dispatch.server.ts`).
+
+De hook is bewust **additief** en **post-commit**:
+
+- de bestaande transactie, de bestaande transactiebounds en de bestaande
+  foutafhandeling van de wachtrij- en afspraakservices blijven ongewijzigd;
+- de hook geeft nooit een fout door (`notifyOwnerPush()` vangt alle fouten
+  af), zodat een pushprobleem nooit de kernactie laat mislukken
+  (`BUSINESS_RULES.md` §29 "Foutafhandeling");
+- de klantenpush (`dispatchPendingDeliveries`) wordt niet aangeraakt.
+
+### Verzending, retry en herstel
+
+De dispatcher spiegelt het beproefde patroon van de klantenpush, maar op de
+eigen tabellen: claim met fencing (`claim_token` + `claimed_at`), begrensde
+pogingen (maximaal drie, database-constraint), retry met `next_attempt_at` en
+afsluitende statussen. Een providerfout met status 404 of 410 betekent een
+dood endpoint: het abonnement wordt gedeactiveerd en de delivery afgesloten
+als `invalid`. Een tijdelijke fout laat de delivery `pending` voor een
+volgende poging.
+
+De bestaande cronroute `/api/cron/push-dispatch` herstelt vastgelopen claims
+en verwerkt achtergebleven deliveries. De klantensectie en de eigenaarsectie
+draaien daar gescheiden; een fout in de eigenaarsectie raakt de klantensectie
+niet.
+
+### Privacy van de payload
+
+De payload bevat uitsluitend een technische tag en het soort gebeurtenis
+(`{ tag, kind }`). De tag is een eenmalige vingerafdruk (SHA-256) van de
+gebeurtenissleutel: stabiel per gebeurtenis voor deduplicatie op het apparaat,
+maar niet herleidbaar naar een klant, afspraak of wachtrij-entry. Titel, tekst
+en bestemming staan vast in de service worker; de payload levert geen
+persoonsgegevens.
+
+De service worker krijgt een `kind`-discriminator. De klanttak is ongewijzigd:
+een payload zonder herkenbare `kind` blijft een klantmelding met dezelfde
+titel, tekst, tag-prefix en bestemming `/queue`. `SW_VERSION` is omhoog
+gezet naar `centro-kapper-sw-v3`.
+
+### Retentie
+
+De technische pushgegevens volgen het gebruik, niet een vaste termijn
+(`BUSINESS_RULES.md` §29 "Technische pushgegevens"): deliveries met een
+eindstatus waarvan de gebeurtenis buiten het verzendvenster ligt, worden
+opgeschoond; inactieve abonnementen worden opgeschoond zodra ze niet meer
+nodig zijn voor verzending. Actieve, geldige abonnementen blijven bestaan
+zolang ze nodig zijn.
+
+### Modules
+
+- `src/db/schema/owner-push-subscriptions.ts` — schema, relaties en constraints;
+- `src/push/owner-push.schemas.ts` — eigen zod-validatie voor de apparaten;
+- `src/push/owner-push.service.server.ts` — registreren, uitschakelen en tonen van apparaten, plus de deactivering bij een dood endpoint;
+- `src/push/owner-push.dispatch.server.ts` — aanmaken van deliveries, claim, verzending, retry, stale recovery, opschoning en de post-commit hook;
+- `src/push/owner-push.functions.ts` — Server Functions met `requireOwner()`;
+- `src/components/OwnerPushOptIn.tsx` en `src/pages/settings/OwnerPushSettingsSection.tsx` — de opt-in per apparaat in `/owner/settings`.
+
+---
+
+## 39. Automatische data-updates
+
+**CURRENT**
+
+Pagina's halen hun gegevens op via de bestaande Server Functions en bewaren
+die in lokale state. Zonder een verversmechanisme veroudert een openstaande
+pagina zodra de gegevens door iemand anders veranderen (een klant meldt zich
+aan, de kapper boekt een afspraak). Pushmeldingen komen wél aan, omdat push
+een server→devicekanaal is dat onafhankelijk van een open pagina werkt.
+
+De automatische verversing bouwt voort op de bestaande, geteste bouwstenen:
+
+- `src/polling/poll-scheduler.ts` — de `PollScheduler` regelt de timing:
+  één lopende load, exponentiële back-off bij fouten, pauze bij een verborgen
+  tabblad en een directe verversing bij `visibilitychange`;
+- `src/polling/page-refresh.ts` — de `PageRefresh`-controller koppelt de
+  scheduler aan het laden en toepassen van gegevens;
+- `src/polling/use-page-refresh.ts` — de React-koppeling (`usePageRefresh`);
+- `src/queue/owner-queue.polling.ts` en `src/appointments/appointment.polling.ts` —
+  de snapshot-fetcher per domein, die alleen de dynamische gegevens ophaalt.
+
+### Regels
+
+1. **Stil.** Een achtergrondverversing raakt de laad- en foutstatus van de
+   pagina niet: bestaande inhoud blijft zichtbaar en er is geen laadflits.
+2. **Alleen bij verandering.** De controller vergelijkt de geladen inhoud met
+   de laatst toegepaste inhoud en past alleen state toe wanneer die werkelijk
+   is veranderd. Dat voorkomt onnodige renders en flikkering.
+3. **Monotone tokens.** Alleen de meest recente load mag state toepassen; een
+   oudere reactie overschrijft nooit nieuwere state (`createRequestGuard`).
+4. **Bestaande autorisatie.** De fetcher gebruikt uitsluitend de bestaande
+   Server Functions; de server blijft de enige bron van waarheid en de
+   bestaande foutafhandeling blijft intact.
+5. **Geen nieuwe architectuur.** Er komt geen React Query, geen router-
+   invalidatie, geen extra SSE-verbinding en geen wijziging aan pushpayloads
+   of service-workerlogica.
+
+### Gedrag per scherm
+
+| Scherm | Interval | Ververst |
+|---|---|---|
+| Klantwachtrij `/queue` | 12 s | wachtrijvermeldingen, positie en wachttijd (bestaand gedrag) |
+| Kapperswachtrij `/owner/queue` | 12 s | wachtrijvermeldingen van vandaag |
+| Kappersafspraken `/owner/appointments` | 25 s | afspraken en annuleringsverzoeken |
+| Klantafspraken `/bookings` | 25 s | afspraken en annuleringsverzoeken |
+| Eigenaarbel (alle eigenaarpagina's) | SSE + terugvalpolling | meldingenlijst en ongelezenteller (bestaand gedrag) |
+| Kappersdashboard `/owner` | — | geen automatische verversing (zie onder) |
+
+De polling stopt wanneer de pagina wordt verlaten (unmount) en pauzeert in een
+verborgen tabblad; bij terugkeer naar een zichtbaar tabblad wordt direct
+opnieuw opgehaald.
+
+### Bewuste keuzes
+
+- De **dienstenlijst** wordt niet gepolld: het is een statische referentie die
+  alleen via de instellingen verandert. De initiële lading en de lading na
+  een eigen actie halen hem wel op.
+- Het **kappersdashboard** ververst niet: de metrieken komen uit vijf
+  aggregatiequeries, waarvan één zonder ondersteunende index op `completed_at`.
+  Dat is zwaarder dan de lijstverversingen en de cijfers veranderen langzaam.
+  Het dashboard is daarmee de enige pagina die handmatig vernieuwd moet
+  worden; de wijzigingen die er relevant zijn (nieuwe boeking, openstaand
+  annuleringsverzoek) komen via de notificatiebel en de pushmelding binnen.

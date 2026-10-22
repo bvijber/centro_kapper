@@ -237,9 +237,13 @@ De huidige service-, datum- en tijdkeuzes zijn lokaal/mock. De UI toont dus het 
 
 `MyBookings.tsx` gebruikt customer header, hero copy, visuele tabs, één `BookingCard` en customer navigation. De tabs zijn momenteel alleen visueel; de card is hardcoded.
 
+De afspraken en annuleringsverzoeken **ververst automatisch** (interval 25 s, zie `ARCHITECTURE.md` §39), zodat een statuswijziging door de kapper zichtbaar wordt zonder dat de klant hoeft te vernieuwen. De achtergrondverversing is stil: er verschijnt geen laadscherm en de bestaande inhoud blijft staan.
+
 ### 7.5 Queue
 
 `Queue.tsx` gebruikt customer header, hero copy, cards, service-select, textarea, loading state, active queue state, completed state en leave-confirmation markup. Het scherm gebruikt `WaitingListContext` en mock/demo states.
+
+De wachtrijvermeldingen, de positie en de wachttijd **ververst automatisch** zodra de klant een actieve wachtrijvermelding heeft (interval 12 s, zie `ARCHITECTURE.md` §39). De achtergrondverversing is stil.
 
 ### 7.6 Profile
 
@@ -273,6 +277,8 @@ De actieve route krijgt class `active`. Owner pages gebruiken dezelfde merkstijl
 - owner bottom navigation.
 
 Omzet en metrics worden server-side afgeleid via `getOwnerDashboardFn()`; er is geen team-/staff-KPI omdat de owner-only beslissing geen tweede beheerder kent.
+
+Het dashboard **ververst niet automatisch**: de metrieken komen uit vijf aggregatiequeries waarvan één zonder ondersteunende index, en de cijfers veranderen langzaam (`ARCHITECTURE.md` §39). Nieuwe boekingen en openstaande annuleringsverzoeken komen via de notificatiebel en de pushmelding binnen.
 
 ### 8.3 Notificatiebel
 
@@ -325,6 +331,8 @@ De bel bevat:
 
 Appointment cards tonen tijd, status, klantinitialen, klant, service, duur, telefoonnummer, optionele notitie en actions. De huidige actions zijn Details, Bewerk, Annuleer, Bevestig, Afgerond en No-show, afhankelijk van lokale status.
 
+De afspraken en annuleringsverzoeken **ververst automatisch** (interval 25 s, zie `ARCHITECTURE.md` §39), zodat een boeking of statuswijziging van een klant zichtbaar wordt zonder dat de kapper hoeft te vernieuwen. De achtergrondverversing is stil: er verschijnt geen laadscherm en de bestaande inhoud blijft staan.
+
 ### 8.6 Queue
 
 `OwnerQueue.tsx` bevat:
@@ -341,6 +349,8 @@ Appointment cards tonen tijd, status, klantinitialen, klant, service, duur, tele
 
 De waarden en transitions komen server-side uit `listOwnerQueueFn()` en de queue Server Functions; walk-ins worden via `joinQueueFn()` toegevoegd.
 
+De wachtrijvermeldingen **ververst automatisch** (interval 12 s, zie `ARCHITECTURE.md` §39), zodat een klant die zich aanmeldt of de wachtrij verlaat zichtbaar wordt zonder dat de kapper hoeft te vernieuwen. De achtergrondverversing is stil: er verschijnt geen laadscherm en de bestaande inhoud blijft staan.
+
 ### 8.7 Profiel
 
 `OwnerProfile.tsx` toont het eigenaarprofiel (naam, telefoon, e-mail), profile editing via `getMyOwnerProfileFn()` / `updateMyOwnerProfileFn()`, navigatie-cards naar de vier beheerpagina's en logout. De pagina rendert `OwnerSettingsSections` niet.
@@ -349,13 +359,14 @@ De waarden en transitions komen server-side uit `listOwnerQueueFn()` en de queue
 
 `OwnerSettings.tsx` toont de instellingenpagina: merkheader met `EIGENAAR`, eyebrow `Instellingen`, titel, lead, `OwnerSettingsSections`, logout en `OwnerBottomNav`.
 
-`OwnerSettingsSections.tsx` is de orchestrator: één centrale `load()`, gedeelde save-state en per sectie feedback via het bestaande success/error pattern. De pagina werkt volgens overzicht → onderdeel → terug. Het overzicht toont cards voor `Saloninformatie`, `Boekingsinstellingen`, `Openingstijden`, `Pauzes en blokkades` en `Diensten`; een sectie opent met een `Terug`-knop (`ArrowLeft`) en rendert alleen die sectie. De sectiecomponenten staan in `src/pages/settings/`:
+`OwnerSettingsSections.tsx` is de orchestrator: één centrale `load()`, gedeelde save-state en per sectie feedback via het bestaande success/error pattern. De pagina werkt volgens overzicht → onderdeel → terug. Het overzicht toont cards voor `Saloninformatie`, `Boekingsinstellingen`, `Openingstijden`, `Pauzes en blokkades`, `Diensten` en `Pushmeldingen`; een sectie opent met een `Terug`-knop (`ArrowLeft`) en rendert alleen die sectie. De sectiecomponenten staan in `src/pages/settings/`:
 
 - `SalonInformationSection`: naam, adres en telefoon;
 - `BookingSettingsSection`: buffer en annuleringstermijn in minuten, overlap en no-show vrijgave als radiokeuzes; er is geen control voor `confirmationBehavior`;
 - `OpeningHoursSection`: één rij per dag met open-checkbox en openingstijd/sluitingstijd, met `htmlFor` en visueel verborgen labels voor de tijdvelden;
 - `BreaksAndBlocksSection` met `BreakEditor` en `BlockEditor`: pauzes en volledige dagblokkades via modals, met uitsluitend velden die de bestaande schemas ondersteunen;
-- `ServicesSection` met `ServiceListItem` en `ServiceEditor`: dienstenlijst met status, activeren/deactiveren en een modal voor create en bewerken. Gearchiveerde diensten worden niet getoond en archiveren heeft geen UI-actie.
+- `ServicesSection` met `ServiceListItem` en `ServiceEditor`: dienstenlijst met status, activeren/deactiveren en een modal voor create en bewerken. Gearchiveerde diensten worden niet getoond en archiveren heeft geen UI-actie;
+- `OwnerPushSettingsSection`: de pushopt-in voor de eigenaar per apparaat, met de apparatenlijst en de mogelijkheid om één apparaat uit te schakelen (zie 36.2).
 
 **UI RULE**
 
@@ -560,6 +571,10 @@ De huidige code bevat:
 - auth submittekst `Bezig...`.
 
 Er is geen algemeen server-data loading component.
+
+**CURRENT**
+
+Automatische achtergrondverversing (`ARCHITECTURE.md` §39) gebruikt **geen** loading state: de bestaande inhoud blijft zichtbaar tijdens de verversing en er verschijnt geen spinner of leeg scherm. Het laadscherm blijft alleen zichtbaar bij de initiële lading en bij een lading die bij een gebruikersactie hoort.
 
 **UI RULE**
 
@@ -946,7 +961,7 @@ De algemene regels hierboven definiëren geen concrete notification-events. De c
 
 ### 36.2 Eigenaarpush
 
-**UI RULE/FUTURE**
+**UI RULE**
 
 - Push voor de eigenaar is optioneel en wordt uitsluitend ingeschakeld vanuit een expliciete gebruikersactie; de UI vraagt nooit automatisch toestemming bij het openen, bezoeken of herladen van een pagina.
 - De UI toont per apparaat of push aanstaat en biedt de mogelijkheid om push op dat apparaat uit te schakelen.
@@ -954,3 +969,11 @@ De algemene regels hierboven definiëren geen concrete notification-events. De c
 - De UI toont geen retentie-instelling voor pushapparaten; technische pushgegevens worden uitsluitend bewaard zolang ze nodig zijn voor verzending (`BUSINESS_RULES.md` §29) en de UI regelt dat niet.
 - Er is geen stilteperiode-instelling in v1 en de UI biedt die dus niet aan.
 - Wanneer push niet wordt ondersteund of niet is toegestaan, blijft de interne notificatiebel beschikbaar en wordt dat in de UI duidelijk gemaakt.
+
+**CURRENT**
+
+- De pushinstellingen voor de eigenaar staan als aparte sectie **Pushmeldingen** in `/owner/settings` (`OwnerSettingsSections` → `OwnerPushSettingsSection`), naast de bestaande secties.
+- `OwnerPushOptIn` toont de status van het huidige apparaat en bevat de expliciete actie om meldingen aan- of uit te zetten; toestemming wordt pas bij die actie gevraagd.
+- De sectie toont daarnaast de geregistreerde apparaten van de eigenaar met een actie om één apparaat uit te schakelen. De apparaten worden met een niet-herleidbaar etiket getoond; endpoints komen niet in de UI.
+- Bij een niet-ondersteunde of geweigerde browsertoestand blijft de uitleg zichtbaar en blijft de notificatiebel het enige kanaal.
+

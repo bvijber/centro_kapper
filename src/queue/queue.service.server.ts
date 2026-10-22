@@ -29,6 +29,9 @@ import {
   updateQueueEntry,
 } from './queue.repository.server'
 import type { QueueJoinInput } from './queue.schemas'
+import { notifyOwnerPush } from '../push/owner-push.dispatch.server'
+import { dispatchPendingDeliveries } from '../push/push.dispatch.server'
+import { createPushIntentForCalledEntry, deactivatePushSubscriptionsForEntry } from '../push/push.service.server'
 import {
   recordQueueJoinedNotification,
   recordQueueLeftNotification,
@@ -186,6 +189,18 @@ export async function joinQueue(input: QueueJoinInput, actor: QueueActor, now = 
         })
       }
        return guestCapability ? { ...result, guestCapability } : result
+    }).then(async (entry) => {
+      // Additieve post-commit hook voor eigenaarpush. De melding voor de
+      // eigenaar is al binnen de transactie vastgelegd; verstuurd wordt
+      // pas nadat die transactie is gecommit. De bestaande wachtrij-push
+      // (customer) wordt hier niet aangeraakt. Een pushfout mag een
+      // geslaagde inschrijving nooit laten mislukken.
+      try {
+        await notifyOwnerPush()
+      } catch {
+        // Bewust genegeerd: zie hierboven.
+      }
+      return entry
     })
   } catch (error) {
     if (error instanceof QueueError || error instanceof AuthError) throw error
@@ -279,6 +294,12 @@ async function transitionQueueEntry(
         appointmentId: options.appointmentId ?? undefined,
       })
       if (!updated) throw new QueueError('Queue-entry kon niet worden bijgewerkt.', 'FAILED')
+      if (targetStatus === 'called') {
+        await createPushIntentForCalledEntry(tx, id)
+      }
+      if (targetStatus === 'completed' || targetStatus === 'cancelled' || targetStatus === 'skipped') {
+        await deactivatePushSubscriptionsForEntry(tx, id, 'entry_ended')
+      }
       const result = await findDetails(tx, id, current.queueDate)
       if (!result) throw new QueueError('Queue-entry kon niet worden geladen.', 'FAILED')
       const action = options.action ?? (targetStatus === 'waiting' ? 'queue.rejoin' : targetStatus === 'in_service' ? 'queue.start_service' : `queue.${targetStatus}`)
@@ -310,12 +331,30 @@ export function leaveQueue(id: string, actor: QueueActor): Promise<QueueEntryDTO
   return transitionQueueEntry(id, 'cancelled', actor, {
     action: 'queue.leave',
     notifyOwnerQueueLeft: true,
+  }).then(async (entry) => {
+    // Additieve post-commit hook voor eigenaarpush (zie joinQueue).
+    try {
+      await notifyOwnerPush()
+    } catch {
+      // Bewust genegeerd: zie hierboven.
+    }
+    return entry
   })
 }
 
 export function callQueueEntry(id: string, actor: QueueMutationActor): Promise<QueueEntryDTO> {
   requireOwner(actor)
-  return transitionQueueEntry(id, 'called', actor)
+  return transitionQueueEntry(id, 'called', actor).then(async (entry) => {
+    try {
+      // Begrensde inline verzending na commit. Een pushfout mag een
+      // geslaagde owner-actie nooit laten mislukken; de uitkomst staat in
+      // de delivery-rijen en achterblijvers herstelt de dagelijkse Cron.
+      await dispatchPendingDeliveries({ queueEntryId: entry.id })
+    } catch {
+      // Bewust genegeerd: zie hierboven.
+    }
+    return entry
+  })
 }
 
 export function startQueueService(id: string, actor: QueueMutationActor, appointmentId?: string): Promise<QueueEntryDTO> {

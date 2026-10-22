@@ -23,6 +23,7 @@ import {
   recordAppointmentCancelledNotification,
 } from '../notifications/owner-notification.service.server'
 import { shouldNotifyAppointmentCancelled } from '../notifications/owner-notification.events'
+import { notifyOwnerPush } from '../push/owner-push.dispatch.server'
 import {
   findAppointmentById,
   findCancellationRequestById,
@@ -340,6 +341,17 @@ export async function createAppointment(input: AppointmentCreateInput, actor: Ap
         guestName: appointment.guestName,
       })
       return appointment
+    }).then(async (appointment) => {
+      // Additieve post-commit hook voor eigenaarpush. De melding voor de
+      // eigenaar is al binnen de transactie vastgelegd; verstuurd wordt pas
+      // nadat die transactie is gecommit. Een pushfout mag een geslaagde
+      // boeking nooit laten mislukken.
+      try {
+        await notifyOwnerPush()
+      } catch {
+        // Bewust genegeerd: zie hierboven.
+      }
+      return appointment
     })
   } catch (error) {
     if (error instanceof AppointmentError) throw error
@@ -503,6 +515,14 @@ export async function cancelAppointment(id: string, actor: AppointmentMutationAc
         }
         return dto
       })
+    }).then(async (dto) => {
+      // Additieve post-commit hook voor eigenaarpush (zie createAppointment).
+      try {
+        await notifyOwnerPush()
+      } catch {
+        // Bewust genegeerd: zie hierboven.
+      }
+      return dto
     })
   } catch (error) {
     return mapAppointmentError(error, 'Afspraak kon niet worden geannuleerd.')
@@ -756,6 +776,14 @@ export async function approveCancellationRequest(id: string, actor: AppointmentM
         }
         return { request: requestDto, appointment: appointmentDto }
       })
+    }).then(async (result) => {
+      // Additieve post-commit hook voor eigenaarpush (zie createAppointment).
+      try {
+        await notifyOwnerPush()
+      } catch {
+        // Bewust genegeerd: zie hierboven.
+      }
+      return result
     })
   } catch (error) {
     return mapAppointmentError(error, 'Annuleringsverzoek kon niet worden goedgekeurd.')

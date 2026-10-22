@@ -655,7 +655,7 @@ De productregels hierboven zijn afgesproken, maar de volledige Web Push-function
 
 Deze paragraaf is de bron van waarheid voor alle meldingen die de **eigenaar** ontvangt. Klantenpush blijft volledig geregeld in §28 en wordt door deze paragraaf niet gewijzigd.
 
-De technische implementatie is nog niet uitgevoerd; §29 beschrijft uitsluitend productregels, geen bestaande functionaliteit.
+De technische implementatie volgt deze productregels; §29 beschrijft uitsluitend productregels, geen bestaande functionaliteit. De technische beschrijving van de interne bel en van eigenaarpush staat in `ARCHITECTURE.md` §37 en §38 en in `DATABASE_RULES.md` §35 en §36.
 
 ### Onderdelen
 

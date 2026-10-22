@@ -782,3 +782,22 @@ Beide tabellen verwijzen naar `users` met `ON DELETE CASCADE`; `owner_notificati
 **DATABASE RULE**
 
 De bewaartermijn van interne meldingen is 30 dagen, ongeacht of ze gelezen zijn, en is niet instelbaar (`BUSINESS_RULES.md` §29). Opruiming verwijdert uitsluitend rijen uit `owner_notifications`; het gebeurtenisregister blijft intact. Er worden geen payload-, secret-, capability- of pushvelden opgeslagen.
+
+---
+
+## 36. Pushabonnementen en verzendregistraties voor de eigenaar
+
+**CURRENT**
+
+De database ondersteunt pushmeldingen voor de eigenaar (`BUSINESS_RULES.md` §29) via twee tabellen in `src/db/schema/owner-push-subscriptions.ts` (migratie `0013_lyrical_luminals.sql`):
+
+- `owner_push_subscriptions`: één abonnement per apparaat van de eigenaar (`owner_user_id`, `ON DELETE CASCADE` naar `users`); het endpoint is de apparaatidentiteit en is uniek; server-side `p256dh_key` en `auth_key`; `active`-status met deactiveer-timestamp en reden (`opt_out`, `invalid`, `expired`, `replaced`); meerdere apparaten per eigenaar zijn toegestaan en worden onafhankelijk van elkaar geschakeld.
+- `owner_push_deliveries`: één delivery per combinatie van gebeurtenis en abonnement (`event_id` → `owner_notification_events` en `subscription_id` → `owner_push_subscriptions`, beide `ON DELETE CASCADE`); status (`pending`, `sending`, `sent`, `failed`, `expired`, `invalid`); pogingenteller database-begrensd op maximaal drie; `next_attempt_at`; foutcategorie; `claim_token` en `claimed_at` voor fencing; index op status en volgende poging voor dispatch en stale recovery.
+
+De pushintentie is het duurzame gebeurtenisregister van §35; er is geen aparte intent-tabel. De ontdubbeling zit in de unieke combinatie `event_id` + `subscription_id`.
+
+Deze tabellen zijn gescheiden van de klantenpush (§34): de klanttabellen zijn queue-entry-gebonden (`queue_entry_id` NOT NULL) en kunnen niet voor eigenaarpush worden gebruikt.
+
+**DATABASE RULE**
+
+Verzendregistraties van eigenaarpush volgen het gebruik, niet een vaste termijn: deliveries met een eindstatus waarvan de gebeurtenis buiten het verzendvenster ligt, worden opgeschoond, en inactieve abonnementen worden opgeschoond zodra ze niet meer nodig zijn voor verzending. Actieve, geldige abonnementen worden bewaard zolang ze nodig zijn voor verzending. Er worden geen payload-, secret-, capability- of klantgegevens opgeslagen; de endpoints en sleutels blijven server-side.

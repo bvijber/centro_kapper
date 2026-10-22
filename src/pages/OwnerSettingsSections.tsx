@@ -1,17 +1,18 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, CalendarClock, ChevronRight, Clock3, Coffee, Scissors, Store } from 'lucide-react'
+import { ArrowLeft, Bell, CalendarClock, ChevronRight, Clock3, Coffee, Scissors, Store } from 'lucide-react'
 import { activateServiceFn, createServiceFn, deactivateServiceFn, listServicesFn, updateServiceFn } from '../services/services.functions'
 import { createBreakPeriodFn, createWholeDayBlockFn, deleteBreakPeriodFn, deleteWholeDayBlockFn, getBookingSettingsFn, getSettingsFn, updateBookingSettingsFn, updateBusinessProfileFn, updateOpeningHoursFn } from '../settings/settings.functions'
 import { Card } from '../components/Card'
 import { BookingSettingsSection } from './settings/BookingSettingsSection'
 import { BreaksAndBlocksSection } from './settings/BreaksAndBlocksSection'
 import { OpeningHoursSection } from './settings/OpeningHoursSection'
+import { OwnerPushSettingsSection } from './settings/OwnerPushSettingsSection'
 import { SalonInformationSection } from './settings/SalonInformationSection'
 import { SectionFeedback } from './settings/SectionFeedback'
 import { ServicesSection } from './settings/ServicesSection'
 import type { BookingSettings, BreakPeriod, BusinessProfile, OpeningHour, Service, ServiceEditorValue, WholeDayBlock } from './settings/types'
 
-type SectionId = 'salon' | 'booking' | 'hours' | 'breaks' | 'services'
+type SectionId = 'salon' | 'booking' | 'hours' | 'breaks' | 'services' | 'push'
 type FeedbackState = { kind: 'success' | 'error'; scope: SectionId | 'page'; text: string }
 
 const SECTION_LINKS: Array<{ id: SectionId; title: string; subtitle: string; icon: typeof Store }> = [
@@ -20,6 +21,7 @@ const SECTION_LINKS: Array<{ id: SectionId; title: string; subtitle: string; ico
   { id: 'hours', title: 'Openingstijden', subtitle: 'Open dagen en tijden', icon: Clock3 },
   { id: 'breaks', title: 'Pauzes en blokkades', subtitle: 'Vrije momenten en volledige dagen', icon: Coffee },
   { id: 'services', title: 'Diensten', subtitle: 'Prijzen, duur en beschikbaarheid', icon: Scissors },
+  { id: 'push', title: 'Pushmeldingen', subtitle: 'Meldingen op je eigen apparaten', icon: Bell },
 ]
 
 export function OwnerSettingsSections() {
@@ -209,6 +211,7 @@ export function OwnerSettingsSections() {
         {activeSection === 'hours' && <OpeningHoursSection hours={hours} onChange={setHours} saving={saving} onSave={() => void saveHours()} />}
         {activeSection === 'breaks' && <BreaksAndBlocksSection breaks={breaks} blocks={blocks} saving={saving} onCreateBreak={createBreak} onCreateBlock={createBlock} onDeleteBreak={(id) => void deleteBreak(id)} onDeleteBlock={(id) => void deleteBlock(id)} />}
         {activeSection === 'services' && <ServicesSection services={services} saving={saving} onSave={saveService} onToggle={(service) => void toggleService(service)} />}
+        {activeSection === 'push' && <OwnerPushSettingsSection />}
       </>}
   </>
 }
