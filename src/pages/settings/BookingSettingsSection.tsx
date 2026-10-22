@@ -39,13 +39,7 @@ export function BookingSettingsSection({ booking, onChange, saving, onSave }: Pr
       </div>
       <p className="booking-choice-hint">Bij toestaan volgt een waarschuwing en moet je de afspraak expliciet bevestigen.</p>
     </div>
-    <div className="booking-choice-group">
-      <span className="booking-choice-title" id="no-show-choice-label">No-show vrijgave</span>
-      <div className="booking-choices" role="radiogroup" aria-labelledby="no-show-choice-label">
-        <Choice name="no-show-release" checked={booking.noShowReleaseBehavior === 'manual'} onChange={() => onChange({ ...booking, noShowReleaseBehavior: 'manual' })}>Handmatig</Choice>
-        <Choice name="no-show-release" checked={booking.noShowReleaseBehavior === 'automatic'} onChange={() => onChange({ ...booking, noShowReleaseBehavior: 'automatic' })}>Automatisch</Choice>
-      </div>
-    </div>
+    <p className="booking-choice-hint">Een no-show geeft het tijdslot altijd automatisch vrij.</p>
     <Button onClick={onSave} disabled={saving}>{saving ? 'Bezig...' : 'Opslaan'}</Button>
   </Card>
 }

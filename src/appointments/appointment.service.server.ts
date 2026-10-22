@@ -437,6 +437,9 @@ export async function updateAppointmentStatus(id: string, targetStatus: Appointm
         const now = new Date()
         const values: Parameters<typeof updateAppointment>[2] = { status: targetStatus }
         if (targetStatus === 'no_show') {
+          // Een no_show geeft het tijdslot altijd automatisch vrij, in dezelfde
+          // transactie als de statusovergang (BUSINESS_RULES.md §17).
+          values.slotReleasedAt = now
         }
         if (targetStatus === 'completed') values.completedAt = now
         const updated = await updateAppointment(tx, id, values)

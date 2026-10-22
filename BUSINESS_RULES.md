@@ -304,14 +304,9 @@ Implementeer geen automatische online confirmation.
 
 Een `no_show`-afspraak blijft als historische afspraak geregistreerd.
 
-Het gedrag waarmee de resterende tijd weer beschikbaar komt is **configureerbaar**:
+Wanneer de barber een afspraak als `no_show` markeert, wordt het bijbehorende tijdslot altijd automatisch vrijgegeven, zodat het weer beschikbaar kan worden voor nieuwe boekingen. De vrijgave gebeurt atomair met de statusovergang. De `no_show`-status zelf blijft behouden.
 
-- automatisch vrijgeven;
-- of handmatig vrijgeven door de barber.
-
-De `no_show`-status zelf mag hierdoor niet verdwijnen of vervangen worden.
-
-**Status: BESLOTEN — configureerbaar**
+**Status: BESLOTEN — altijd automatisch vrijgeven**
 
 ---
 
@@ -552,7 +547,6 @@ Dit geldt onder andere voor:
 - buiten normale beschikbaarheid boeken;
 - overlappende afspraken (default: blokkeren);
 - handmatige bevestiging;
-- `no_show`-gedrag;
 - dienstprijzen;
 - serviceduur;
 - openingstijden.

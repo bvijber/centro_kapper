@@ -428,7 +428,7 @@ De huidige `booking_settings`-singleton bevat persistence voor de volgende barbe
 - cancellation deadline (24 uur);
 - buiten normale beschikbaarheid boeken;
 - overlap behavior;
-- no-show behavior;
+- no-show behavior (persistent, maar functioneel inert: een `no_show` geeft het tijdslot altijd automatisch vrij conform `BUSINESS_RULES.md` §17);
 - availability override behavior.
 
 `business_profile`, `opening_hours`, `break_periods`, `whole_day_blocks` en `booking_settings` vormen de settings-basis.

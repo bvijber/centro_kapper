@@ -492,13 +492,12 @@ De volgende waarden moeten uit database/configuration komen wanneer de barber ze
 - boeken buiten normale beschikbaarheid;
 - overlap permission;
 - handmatige appointment confirmation;
-- no-show behavior;
 - availability override behavior;
 - service price;
 - service duration;
 - opening hours.
 
-De exacte waarden van cancellation deadline, no-show configuration en queue rules zijn niet ingevuld. De architectuur ondersteunt deze configuratie zonder alvast waarden te verzinnen.
+De exacte waarden van cancellation deadline en queue rules zijn niet ingevuld. No-show-vrijgave is altijd automatisch en daarmee geen configuratiekeuze meer.
 
 ---
 
