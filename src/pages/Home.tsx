@@ -43,7 +43,7 @@ export function Home() {
       {!loading && !error && data && (
         <>
           <Card className="hours-card"><div><p className="eyebrow">OPENINGSTIJDEN</p><h3>{data.hoursSummary}</h3><p>Vandaag staan we voor je klaar.</p></div><Clock3 /></Card>
-          <div className="contact-actions"><a href={`tel:${data.business.phone}`}><Phone size={18} /> Contact</a><a href="https://maps.google.com/?q=Nieuwe+Markt+12+Breda" target="_blank" rel="noreferrer"><Navigation size={18} /> Route</a></div>
+          <div className="contact-actions"><a href={`tel:${data.business.phone}`}><Phone size={18} /> Contact</a>{data.business.address ? <a href={`https://maps.google.com/?q=${encodeURIComponent(data.business.address)}`} target="_blank" rel="noreferrer"><Navigation size={18} /> Route</a> : null}</div>
         </>
       )}
     </aside>

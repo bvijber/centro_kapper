@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { X } from 'lucide-react'
 import type { Service, ServiceEditorValue } from './types'
+import { formatCentsAsEuro, parseEuroToCents } from '../../services/price'
 
 type Props = {
   service?: Service
@@ -12,7 +13,7 @@ export function ServiceEditor({ service, onClose, onSubmit }: Props) {
   const [name, setName] = useState(service?.name ?? '')
   const [description, setDescription] = useState(service?.description ?? '')
   const [duration, setDuration] = useState(service ? String(service.durationMinutes) : '')
-  const [price, setPrice] = useState(service ? String(service.priceCents) : '')
+  const [price, setPrice] = useState(service ? formatCentsAsEuro(service.priceCents) : '')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -22,9 +23,9 @@ export function ServiceEditor({ service, onClose, onSubmit }: Props) {
     if (!description.trim()) return setError('Vul een beschrijving in.')
     const durationMinutes = Number(duration)
     if (!duration.trim() || !Number.isInteger(durationMinutes) || durationMinutes < 1) return setError('Duur moet minstens 1 minuut zijn.')
-    const priceCents = Number(price)
+    const priceCents = parseEuroToCents(price)
     if (!price.trim()) return setError('Vul een prijs in.')
-    if (!Number.isInteger(priceCents) || priceCents < 0) return setError('Prijs moet 0 of hoger zijn.')
+    if (priceCents === null) return setError('Prijs moet een geldig bedrag in euro\'s zijn, bijvoorbeeld 35 of 35,50.')
     setSubmitting(true)
     const message = await onSubmit({ name: name.trim(), description: description.trim(), durationMinutes, priceCents })
     setSubmitting(false)
@@ -43,7 +44,7 @@ export function ServiceEditor({ service, onClose, onSubmit }: Props) {
       <label>Beschrijving<textarea rows={3} value={description} onChange={(event) => setDescription(event.target.value)} /></label>
       <div className="form-row">
         <label>Duur in minuten<input type="number" min="1" value={duration} onChange={(event) => setDuration(event.target.value)} /></label>
-        <label>Prijs in centen<input type="number" min="0" value={price} onChange={(event) => setPrice(event.target.value)} /></label>
+        <label>Prijs in euro's<div className="price-input"><span aria-hidden="true">€</span><input type="text" inputMode="decimal" value={price} onChange={(event) => setPrice(event.target.value)} /></div></label>
       </div>
       <div className="modal-actions">
         <button className="cancel-modal" onClick={onClose}>Annuleren</button>

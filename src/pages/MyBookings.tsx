@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router'
 import { useEffect, useMemo, useState } from 'react'
 import type { AppointmentDTO, BookableServiceDTO, CancellationRequestListItemDTO } from '../appointments/appointment.service.server'
 import { cancelAppointmentFn, getAvailabilityFn, listBookableServicesFn, modifyAppointmentFn, requestCancellationFn, withdrawCancellationRequestFn } from '../appointments/appointment.functions'
+import { getBusinessProfileFn } from '../settings/settings.functions'
 import { APPOINTMENTS_POLL_INTERVAL_MS, fetchAppointmentsSnapshot } from '../appointments/appointment.polling'
 import { usePageRefresh } from '../polling/use-page-refresh'
 import { BottomNav } from '../components/BottomNav'
@@ -29,6 +30,7 @@ export function MyBookings() {
   const [success, setSuccess] = useState('')
   const [editing, setEditing] = useState<AppointmentDTO | null>(null)
   const [requesting, setRequesting] = useState<AppointmentDTO | null>(null)
+  const [businessAddress, setBusinessAddress] = useState('')
 
   const pendingByAppointment = useMemo(() => {
     const map = new Map<string, CancellationRequestListItemDTO>()
@@ -61,6 +63,9 @@ export function MyBookings() {
   }
 
   useEffect(() => { void load() }, [])
+  useEffect(() => {
+    void getBusinessProfileFn({ data: undefined }).then((profile) => setBusinessAddress(profile?.address ?? '')).catch(() => setBusinessAddress(''))
+  }, [])
 
   const now = new Date()
   const upcoming = appointments.filter((appointment) => appointment.startsAt >= now)
@@ -108,7 +113,7 @@ export function MyBookings() {
     {loading ? <p className="lead">Bezig met laden...</p> : null}
     {!loading && visible.length === 0 ? <div className="empty-state"><p className="eyebrow">GEEN AFSPRAKEN</p><p>Er zijn geen {tab === 'upcoming' ? 'aankomende' : 'voltooide'} afspraken om te tonen.</p><Link className="secondary-action" to="/booking">Afspraak maken</Link></div> : null}
     {visible.map((appointment) => (
-      <BookingCard key={appointment.id} appointment={appointment}>
+      <BookingCard key={appointment.id} appointment={appointment} address={businessAddress}>
         {canManage(appointment) && (
           <div className="appointment-actions">
             <button type="button" onClick={() => setEditing(appointment)}>Wijzigen</button>

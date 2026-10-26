@@ -2,7 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 
 import { requireCustomer, requireOwner } from '../auth/authorization'
 import { customerProfileUpdateSchema, ownerProfileUpdateSchema } from './profiles.schemas'
-import { getCustomerProfile, getOwnerProfile, updateCustomerProfile, updateOwnerProfile } from './profiles.service.server'
+import { getCustomerProfile, getOwnerProfile, getPublicOwnerProfile, updateCustomerProfile, updateOwnerProfile } from './profiles.service.server'
 
 export const getMyCustomerProfileFn = createServerFn({ method: 'GET' }).handler(async () => {
   const user = await requireCustomer()
@@ -13,6 +13,8 @@ export const updateMyCustomerProfileFn = createServerFn({ method: 'POST' }).vali
   const user = await requireCustomer()
   return updateCustomerProfile(user.id, data)
 })
+
+export const getPublicOwnerProfileFn = createServerFn({ method: 'GET' }).handler(() => getPublicOwnerProfile())
 
 export const getMyOwnerProfileFn = createServerFn({ method: 'GET' }).handler(async () => {
   const user = await requireOwner()

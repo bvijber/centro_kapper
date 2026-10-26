@@ -140,3 +140,17 @@
 .notification-item-title{font-weight:600;font-size:14px}
 .notification-item-body{color:var(--muted);font-size:13px}
 .notification-item-time{color:#7c7c80;font-size:11px}
+.price-input{display:flex;align-items:center;gap:8px;border:1px solid #333;border-radius:9px;background:#191919;padding:0 12px}
+.price-input span{color:#b7b7b9}
+.price-input input{border:0;background:transparent;padding:11px 0;width:100%;color:#eee;outline:0}
+/* Dagkaarten afsprakenpagina: gelijke regelhoogtes zodat weekdag, datum en
+   telling binnen de bestaande kaarthoogte gecentreerd en uitgelijnd blijven. */
+.appointments-page>.date-strip button{line-height:1.1}
+.appointments-page>.date-strip button span,.appointments-page>.date-strip button small{line-height:1.1}
+.appointments-page>.date-strip button b{line-height:1;font-variant-numeric:tabular-nums}
+.appointments-page>.day-filter button small{line-height:1.2;font-variant-numeric:tabular-nums}
+/* Pushmeldingenkaart binnen de actieve wachtrij. */
+.queue-push-optin{padding:16px;margin-top:20px}
+.queue-push-optin .eyebrow{margin:0 0 10px}
+.queue-push-optin .queue-explanation{margin:0 0 14px}
+.queue-push-optin .success-message{margin:12px 0 0}

@@ -5,12 +5,12 @@ import { appointmentStatusClass, appointmentStatusLabel, formatPriceCents } from
 import { formatAmsterdamDate, formatAmsterdamTime } from '../timezone'
 import { Card } from './Card'
 
-export function BookingCard({ appointment, children }: { appointment: AppointmentDTO; children?: ReactNode }) {
+export function BookingCard({ appointment, address, children }: { appointment: AppointmentDTO; address?: string; children?: ReactNode }) {
   return <Card className="booking-card">
     <span className={`appointment-status ${appointmentStatusClass(appointment.status)}`}>{appointmentStatusLabel(appointment.status)}</span>
     <div className="booking-main">
       <div className="business-mark">CK</div>
-      <div><h3>{appointment.serviceNameAtBooking}</h3><p><MapPin size={15} /> Nieuwe Markt 12, Breda</p></div>
+      <div><h3>{appointment.serviceNameAtBooking}</h3>{address ? <p><MapPin size={15} /> {address}</p> : null}</div>
     </div>
     <div className="booking-meta">
       <span><CalendarDays size={18} /> {formatAmsterdamDate(appointment.startsAt)}</span>

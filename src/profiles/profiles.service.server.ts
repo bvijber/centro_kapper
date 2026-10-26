@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 
 import { recordAuditEvent } from '../auth/audit.server'
 import { db } from '../db/client.server'
@@ -82,6 +82,24 @@ export async function getOwnerProfile(userId: string): Promise<OwnerProfileDTO> 
   } catch (error) {
     if (error instanceof ProfilesError) throw error
     throw new ProfilesError('Profiel kon niet worden geladen.', 'FAILED')
+  }
+}
+
+export type PublicOwnerProfileDTO = {
+  displayName: string
+}
+
+export async function getPublicOwnerProfile(): Promise<PublicOwnerProfileDTO | null> {
+  try {
+    const [row] = await db
+      .select({ displayName: ownerProfiles.displayName })
+      .from(ownerProfiles)
+      .where(eq(ownerProfiles.active, true))
+      .orderBy(asc(ownerProfiles.createdAt))
+      .limit(1)
+    return row ?? null
+  } catch {
+    throw new ProfilesError('Eigenaarnaam kon niet worden geladen.', 'FAILED')
   }
 }
 

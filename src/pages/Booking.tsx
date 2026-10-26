@@ -3,7 +3,8 @@ import { Link, useNavigate as useTanStackNavigate } from '@tanstack/react-router
 import { useEffect, useState } from 'react'
 import { getCurrentUserFn } from '../auth/auth.functions'
 import { createAppointmentFn, getAvailabilityFn, listBookableServicesFn } from '../appointments/appointment.functions'
-import { getOpeningHoursFn } from '../settings/settings.functions'
+import { getBusinessProfileFn, getOpeningHoursFn } from '../settings/settings.functions'
+import { getPublicOwnerProfileFn } from '../profiles/profiles.functions'
 import { Button } from '../components/Button'
 import { Card } from '../components/Card'
 import { BottomNav } from '../components/BottomNav'
@@ -15,6 +16,7 @@ type Slot = { date: string; time: string; startsAt: string; endsAt: string }
 
 const euro = (cents: number) => `€ ${(cents / 100).toFixed(2).replace('.', ',')}`
 const serviceCard = (service: Service) => ({ name: service.name, detail: service.description, price: euro(service.priceCents), duration: `${service.durationMinutes} min` })
+const ownerInitials = (name: string) => name.trim().split(/\s+/).filter(Boolean).map((part) => part[0]).join('').slice(0, 2).toUpperCase()
 
 export function Booking() {
   const navigate = useTanStackNavigate()
@@ -33,12 +35,16 @@ export function Booking() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [openingHours, setOpeningHours] = useState<{ weekday: number; isOpen: boolean }[]>([])
+  const [ownerName, setOwnerName] = useState('')
+  const [businessAddress, setBusinessAddress] = useState('')
 
   useEffect(() => {
     void Promise.all([
       listBookableServicesFn({ data: undefined }).then((result) => { setServices(result); setSelectedServiceId(result[0]?.id ?? '') }).catch(() => setError('Diensten konden niet worden geladen.')).finally(() => setLoadingServices(false)),
       getCurrentUserFn().then((result) => setUser(result ? { id: result.id } : null)).catch(() => setUser(null)),
       getOpeningHoursFn({ data: undefined }).then(setOpeningHours).catch(() => {}),
+      getPublicOwnerProfileFn().then((owner) => setOwnerName(owner?.displayName ?? '')).catch(() => setOwnerName('')),
+      getBusinessProfileFn({ data: undefined }).then((profile) => setBusinessAddress(profile?.address ?? '')).catch(() => setBusinessAddress('')),
     ])
   }, [])
 
@@ -109,8 +115,8 @@ export function Booking() {
   return <main className="page booking-page">
     <header className="subheader"><Link to="/home"><ArrowLeft /></Link><h2>AFSPRAAK BOEKEN</h2></header>
     <div className="booking-business">
-      <Card className="fixed-business"><span className="eyebrow">JE BOEKT BIJ</span><strong>Centro Kapper</strong><small>Nieuwe Markt 12, Breda</small></Card>
-      <Card className="barber-profile"><div className="avatar">SV</div><div><h3>Sam Vermeer</h3><p>Eigenaar</p><span><Star size={15} fill="currentColor" /> 4.9 (86 reviews)</span></div></Card>
+      <Card className="fixed-business"><span className="eyebrow">JE BOEKT BIJ</span><strong>Centro Kapper</strong>{businessAddress ? <small>{businessAddress}</small> : null}</Card>
+      {ownerName && <Card className="barber-profile"><div className="avatar">{ownerInitials(ownerName)}</div><div><h3>{ownerName}</h3><p>Eigenaar</p><span><Star size={15} fill="currentColor" /> 4.9 (86 reviews)</span></div></Card>}
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {success && <p className="success-message" role="status">{success}</p>}
