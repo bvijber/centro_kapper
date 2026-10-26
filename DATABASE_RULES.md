@@ -628,7 +628,7 @@ De bestaande indexes ondersteunen onder andere:
 - sessions op token hash, user ID en expiry;
 - users uniek op email;
 - waiting list op queue date/join time en queue date/status;
-- actieve customer waiting-list uniqueness per date;
+- waiting list op queue date/join time en queue date/status, zonder actieve-customer-unique-index (migratie `0007_tense_spectrum.sql` verwijdert `waiting_list_active_customer_date_unique`; meerdere actieve entries per klant per dag zijn toegestaan conform `BUSINESS_RULES.md` §20);
 - rate limits uniek op key/window en op window start.
 
 **DATABASE RULE**

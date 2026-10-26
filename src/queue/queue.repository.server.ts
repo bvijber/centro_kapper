@@ -33,19 +33,6 @@ export async function findQueueEntryByIdForUpdate(executor: QueueExecutor, id: s
   return entry ?? null
 }
 
-export async function findActiveCustomerEntry(executor: QueueExecutor, customerUserId: string, queueDate: string) {
-  const [entry] = await executor
-    .select()
-    .from(waitingListEntries)
-    .where(and(
-      eq(waitingListEntries.customerUserId, customerUserId),
-      eq(waitingListEntries.queueDate, queueDate),
-      sql`${waitingListEntries.status} IN ('waiting', 'called', 'in_service')`,
-    ))
-    .limit(1)
-  return entry ?? null
-}
-
 export async function updateQueueEntry(executor: QueueExecutor, id: string, values: QueueUpdateRecord) {
   const [updated] = await executor
     .update(waitingListEntries)

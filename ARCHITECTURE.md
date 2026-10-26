@@ -343,7 +343,7 @@ Belangrijke bestaande databasebescherming:
 - service archive/inactive check;
 - unieke weekday opening hours;
 - geldige openingstijden en break ranges;
-- queue identity, actieve-entry en ordering constraints;
+- queue identity- en ordering constraints en queue-status-enum, zonder actieve-customer-unique-index (verwijderd in migratie `0007_tense_spectrum.sql`);
 - indexes voor sessies, afspraken, services, queues, audit en rate limits.
 
 ### 10.3 Migrations

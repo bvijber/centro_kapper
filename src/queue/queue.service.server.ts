@@ -19,7 +19,6 @@ import {
 import { canTransitionQueueStatus, calculateEstimatedWaitMinutes, calculateQueuePosition, compareQueueOrder, isActiveQueueStatus, type QueueStatus } from './queue.domain'
 import {
   acquireQueueLock,
-  findActiveCustomerEntry,
   findQueueEntryById,
   findQueueEntryByIdForUpdate,
   insertQueueEntry,
