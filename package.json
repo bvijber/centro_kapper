@@ -22,6 +22,7 @@
     "@tanstack/react-start": "^1.168.60",
     "drizzle-orm": "^0.45.2",
     "lucide-react": "latest",
+    "nitro": "^3.0.260903-beta",
     "react": "latest",
     "react-dom": "latest",
     "web-push": "^3.6.7",
