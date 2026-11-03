@@ -1,13 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { registerServiceWorker } from './register-sw'
 import {
   getCurrentEndpoint,
+  getPushBrowserState,
   getPushPermission,
   isPushSupported,
   requestPermissionAndSubscribe,
   unsubscribeBrowserSubscription,
   urlBase64ToUint8Array,
 } from './push-client'
+
+vi.mock('./register-sw', () => ({
+  registerServiceWorker: vi.fn(async () => null),
+}))
 
 const PUBLIC_KEY = 'BL7ELU24fJTAlH5Kyl8N6BDCac8u8li_U5PIwG963MOvdYs9s7LSzj8x_7v7RFdLZ9Eap50PiiyF5K0TDAis7t0'
 
@@ -21,13 +27,22 @@ type WindowStub = {
 let originalWindow: unknown
 
 function stubBrowser(stub: WindowStub & { navigator: object }): void {
-  ;(globalThis as Record<string, unknown>).window = stub
-  ;(globalThis as Record<string, unknown>).navigator = stub.navigator
-  ;(globalThis as Record<string, unknown>).Notification = stub.Notification
+  Object.defineProperty(globalThis, 'window', { value: stub, writable: true, configurable: true })
+  Object.defineProperty(globalThis, 'navigator', {
+    value: stub.navigator,
+    writable: true,
+    configurable: true,
+  })
+  Object.defineProperty(globalThis, 'Notification', {
+    value: stub.Notification,
+    writable: true,
+    configurable: true,
+  })
 }
 
 beforeEach(() => {
   originalWindow = (globalThis as Record<string, unknown>).window
+  vi.mocked(registerServiceWorker).mockClear()
 })
 
 afterEach(() => {
@@ -107,6 +122,78 @@ describe('push client helpers', () => {
     })
     await expect(getCurrentEndpoint()).resolves.toBe('https://push.example.test/e9')
     await expect(unsubscribeBrowserSubscription()).resolves.toBe(true)
+  })
+})
+
+describe('push browser state', () => {
+  function activeRegistration(subscription: { endpoint: string } | null) {
+    return {
+      active: {},
+      pushManager: {
+        getSubscription: vi.fn(async () => subscription),
+      },
+    }
+  }
+
+  function stubStateBrowser(serviceWorker: object): void {
+    stubBrowser({
+      PushManager: function PushManager() {},
+      Notification: { permission: 'granted' },
+      atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+      navigator: { serviceWorker },
+    })
+  }
+
+  it('wacht niet op ready wanneer er geen registratie bestaat', async () => {
+    stubStateBrowser({
+      getRegistration: vi.fn(async () => undefined),
+      ready: new Promise<never>(() => {}),
+    })
+
+    await expect(getPushBrowserState()).resolves.toEqual({
+      status: 'no-registration',
+      endpoint: null,
+    })
+    expect(registerServiceWorker).toHaveBeenCalledTimes(1)
+  })
+
+  it('herkent een registratie die nog niet actief is zonder te wachten', async () => {
+    stubStateBrowser({
+      getRegistration: vi.fn(async () => ({ active: null })),
+      ready: new Promise<never>(() => {}),
+    })
+
+    await expect(getPushBrowserState()).resolves.toEqual({
+      status: 'registration-pending',
+      endpoint: null,
+    })
+    expect(registerServiceWorker).not.toHaveBeenCalled()
+  })
+
+  it('behandelt een actieve registratie zonder subscription als niet gekoppeld', async () => {
+    stubStateBrowser({
+      getRegistration: vi.fn(async () => activeRegistration(null)),
+    })
+
+    await expect(getPushBrowserState()).resolves.toEqual({
+      status: 'no-subscription',
+      endpoint: null,
+    })
+    expect(registerServiceWorker).not.toHaveBeenCalled()
+  })
+
+  it('herkent een actieve registratie met subscription', async () => {
+    stubStateBrowser({
+      getRegistration: vi.fn(async () =>
+        activeRegistration({ endpoint: 'https://push.example.test/e2' }),
+      ),
+    })
+
+    await expect(getPushBrowserState()).resolves.toEqual({
+      status: 'subscribed',
+      endpoint: 'https://push.example.test/e2',
+    })
+    expect(registerServiceWorker).not.toHaveBeenCalled()
   })
 })
 

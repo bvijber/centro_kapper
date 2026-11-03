@@ -9,6 +9,8 @@
  *   ondersteunde browsers (SSR-veilig).
  */
 
+import { registerServiceWorker } from './register-sw'
+
 export type PushPermissionState = 'unsupported' | 'denied' | 'granted' | 'default'
 
 export type BrowserPushSubscription = {
@@ -113,6 +115,49 @@ export async function getCurrentEndpoint(): Promise<string> {
     return subscription?.endpoint ?? ''
   } catch {
     return ''
+  }
+}
+
+/**
+ * Snelle, niet-blokkerende browserstatus voor de pushopt-in van de eigenaar.
+ *
+ * `navigator.serviceWorker.ready` wacht oneindig wanneer er geen actieve
+ * registratie bestaat. Voor een statuscontrole kijken we daarom eerst naar
+ * een bestaande registratie. Bestaat die niet, dan starten we de gedeelde
+ * registratie op de achtergrond en melden we direct `no-registration`.
+ */
+export type PushBrowserState =
+  | { status: 'no-registration'; endpoint: null }
+  | { status: 'registration-pending'; endpoint: null }
+  | { status: 'no-subscription'; endpoint: null }
+  | { status: 'subscribed'; endpoint: string }
+
+export async function getPushBrowserState(): Promise<PushBrowserState> {
+  if (!isPushSupported()) return { status: 'no-registration', endpoint: null }
+
+  let registration: ServiceWorkerRegistration | null = null
+  try {
+    registration = (await navigator.serviceWorker.getRegistration('/')) ?? null
+  } catch {
+    registration = null
+  }
+
+  if (!registration) {
+    // Start (of hergebruik) de gedeelde registratie zonder de pagina te blokkeren.
+    void registerServiceWorker()
+    return { status: 'no-registration', endpoint: null }
+  }
+
+  if (!registration.active) {
+    return { status: 'registration-pending', endpoint: null }
+  }
+
+  try {
+    const subscription = await registration.pushManager.getSubscription()
+    if (!subscription?.endpoint) return { status: 'no-subscription', endpoint: null }
+    return { status: 'subscribed', endpoint: subscription.endpoint }
+  } catch {
+    return { status: 'no-subscription', endpoint: null }
   }
 }
 

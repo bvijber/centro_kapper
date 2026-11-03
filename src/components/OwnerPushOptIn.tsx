@@ -5,6 +5,7 @@ import { publicErrorMessage } from './publicError'
 import { Button } from './Button'
 import {
   getCurrentEndpoint,
+  getPushBrowserState,
   getPushPermission,
   isPushSupported,
   requestPermissionAndSubscribe,
@@ -50,12 +51,12 @@ export function OwnerPushOptIn({ onChanged }: { onChanged?: () => void }) {
     }
     void (async () => {
       try {
-        const endpoint = await getCurrentEndpoint()
-        if (!endpoint) {
+        const browserState = await getPushBrowserState()
+        if (browserState.status !== 'subscribed') {
           if (active) setState('off')
           return
         }
-        const status = await getOwnerPushStatusFn({ data: { endpoint } })
+        const status = await getOwnerPushStatusFn({ data: { endpoint: browserState.endpoint } })
         if (active) setState(status.subscribed ? 'on' : 'off')
       } catch (caught) {
         if (active) {

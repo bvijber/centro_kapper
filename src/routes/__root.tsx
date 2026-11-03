@@ -10,7 +10,7 @@ function RootDocument({ children }: { children: ReactNode }) {
 }
 
 function RootComponent() {
-  useEffect(() => { registerServiceWorker() }, [])
+  useEffect(() => { void registerServiceWorker() }, [])
   return <RootDocument><AuthProvider><Outlet /></AuthProvider></RootDocument>
 }
 
