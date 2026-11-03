@@ -32,8 +32,17 @@ async function audit(executor: SettingsExecutor, action: string, entityId?: stri
   await recordAuditEvent({ action, entityType: 'settings', entityId, metadata }, executor)
 }
 
+export function normalizeOpeningHourTime(value: string | null): string | null {
+  return value === null ? null : value.slice(0, 5)
+}
+
 function mapOpeningHour(row: Pick<typeof openingHours.$inferSelect, 'weekday' | 'isOpen' | 'openingTime' | 'closingTime'>) {
-  return { weekday: row.weekday, isOpen: row.isOpen, openingTime: row.openingTime, closingTime: row.closingTime }
+  return {
+    weekday: row.weekday,
+    isOpen: row.isOpen,
+    openingTime: normalizeOpeningHourTime(row.openingTime),
+    closingTime: normalizeOpeningHourTime(row.closingTime),
+  }
 }
 
 function mapBreakPeriod(row: typeof breakPeriods.$inferSelect) {

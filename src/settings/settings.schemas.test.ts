@@ -49,6 +49,22 @@ describe('settings schemas', () => {
     expect(openingHoursUpdateSchema.safeParse({ openingHours: days.map((day) => ({ ...day, weekday: 7 })) }).success).toBe(false)
   })
 
+  it('accepteert genormaliseerde HH:MM-waarden uit de database', () => {
+    const days = [openMonday, ...Array.from({ length: 6 }, (_, index) => ({ weekday: index + 1, isOpen: false, openingTime: null, closingTime: null }))]
+    expect(openingHoursUpdateSchema.safeParse({ openingHours: days }).success).toBe(true)
+  })
+
+  it('weigert ongeldige klokwaarden nog steeds', () => {
+    const days = [openMonday, ...Array.from({ length: 6 }, (_, index) => ({ weekday: index + 1, isOpen: false, openingTime: null, closingTime: null }))]
+    expect(openingHoursUpdateSchema.safeParse({ openingHours: [{ ...openMonday, openingTime: '25:00' }, ...days.slice(1)] }).success).toBe(false)
+    expect(openingHoursUpdateSchema.safeParse({ openingHours: [{ ...openMonday, openingTime: '09:60' }, ...days.slice(1)] }).success).toBe(false)
+  })
+
+  it('laat de bestaande semantiek voor gesloten dagen ongewijzigd', () => {
+    const days = [{ ...openMonday, isOpen: false }, ...Array.from({ length: 6 }, (_, index) => ({ weekday: index + 1, isOpen: false, openingTime: null, closingTime: null }))]
+    expect(openingHoursUpdateSchema.safeParse({ openingHours: days }).success).toBe(true)
+  })
+
   it('validates break period intervals and input', () => {
     expect(breakPeriodCreateSchema.safeParse({ startsAt: '2026-09-03T12:00:00+02:00', endsAt: '2026-09-03T13:00:00+02:00' }).success).toBe(true)
     expect(breakPeriodCreateSchema.safeParse({ startsAt: '2026-09-03T13:00:00+02:00', endsAt: '2026-09-03T12:00:00+02:00' }).success).toBe(false)
