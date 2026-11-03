@@ -3,8 +3,8 @@
  *
  * Regels:
  * - toestemming wordt uitsluitend aangevraagd vanuit een expliciete
- *   gebruikersactie (`requestPermissionAndSubscribe`); importeren of
- *   opvragen van status triggert nooit een prompt;
+ *   gebruikersactie (`requestPushPermission`); importeren of opvragen van
+ *   status triggert nooit een prompt;
  * - alle functies zijn no-ops of gooien een hanteerbare fout buiten
  *   ondersteunde browsers (SSR-veilig).
  */
@@ -18,6 +18,23 @@ export type BrowserPushSubscription = {
   p256dh: string
   auth: string
   unsubscribe: () => Promise<boolean>
+}
+
+export type PreparedPushSubscription = {
+  publicKey: string
+  registration: ServiceWorkerRegistration
+}
+
+export type ApplicationServerKeyState = 'match' | 'mismatch' | 'unknown'
+
+export const PUSH_KEY_MISMATCH_MESSAGE =
+  'Dit apparaat heeft nog een bestaand pushabonnement dat niet bij de huidige configuratie hoort. Schakel push voor deze app uit in de browserinstellingen en probeer het opnieuw.'
+
+export class PushKeyMismatchError extends Error {
+  constructor() {
+    super(PUSH_KEY_MISMATCH_MESSAGE)
+    this.name = 'PushKeyMismatchError'
+  }
 }
 
 /**
@@ -62,11 +79,64 @@ export function getPushPermission(): PushPermissionState {
   return 'default'
 }
 
+/**
+ * Vraagt browsertoestemming alleen aan wanneer dat nodig is. De aanroep naar
+ * `Notification.requestPermission()` gebeurt synchroon binnen deze functie,
+ * zodat de caller hem direct vanuit een gebruikersactie kan starten zonder
+ * eerst een netwerkawait te doen.
+ */
+export function requestPushPermission(): Promise<NotificationPermission> {
+  if (!isPushSupported()) {
+    return Promise.reject(new Error('Dit apparaat of deze browser ondersteunt geen pushmeldingen.'))
+  }
+  if (Notification.permission === 'granted') return Promise.resolve('granted')
+  if (Notification.permission === 'denied') return Promise.resolve('denied')
+  return Notification.requestPermission()
+}
+
 export function urlBase64ToUint8Array(base64: string): Uint8Array<ArrayBuffer> {
   const padding = '='.repeat((4 - (base64.length % 4)) % 4)
   const normalized = (base64 + padding).replace(/-/g, '+').replace(/_/g, '/')
   const raw = window.atob(normalized)
   return new Uint8Array([...raw].map((character) => character.charCodeAt(0)))
+}
+
+/**
+ * Classificeert de VAPID-key van een bestaande subscription zonder iets te
+ * wijzigen. Een ontbrekende property of een omgeving zonder de property is
+ * onbekend; die mag nooit als mismatch of als automatische cleanup worden
+ * behandeld.
+ */
+export function classifyApplicationServerKey(
+  subscription: Pick<PushSubscription, 'options'>,
+  publicKey: string,
+): ApplicationServerKeyState {
+  const options = subscription?.options as Partial<PushSubscriptionOptions> | undefined
+  if (!options || !('applicationServerKey' in options)) return 'unknown'
+
+  const currentKey = options.applicationServerKey
+  if (currentKey === undefined) return 'unknown'
+  if (currentKey === null) return 'mismatch'
+
+  let expectedKey: Uint8Array
+  try {
+    expectedKey = urlBase64ToUint8Array(publicKey)
+  } catch {
+    return 'unknown'
+  }
+
+  const currentBytes = new Uint8Array(currentKey)
+  if (currentBytes.length !== expectedKey.length) return 'mismatch'
+  return currentBytes.every((byte, index) => byte === expectedKey[index]) ? 'match' : 'mismatch'
+}
+
+function isInvalidStateError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'name' in error &&
+    (error as { name?: unknown }).name === 'InvalidStateError'
+  )
 }
 
 function toBrowserSubscription(subscription: PushSubscription): BrowserPushSubscription {
@@ -84,18 +154,88 @@ function toBrowserSubscription(subscription: PushSubscription): BrowserPushSubsc
   }
 }
 
-export async function requestPermissionAndSubscribe(publicKey: string): Promise<BrowserPushSubscription> {
-  if (!isPushSupported()) throw new Error('Dit apparaat of deze browser ondersteunt geen pushmeldingen.')
-  if (Notification.permission === 'denied') {
-    throw new Error('Meldingen zijn geblokkeerd in de browser. Pas dit aan in de browserinstellingen.')
+/**
+ * Zorgt voor een actieve Service Worker-registratie vóórdat de gebruiker op
+ * de enableknop tikt. De gedeelde registratiehelper dedupliceert het
+ * registratieverzoek; `navigator.serviceWorker.ready` wacht alleen op een al
+ * gestarte registratie en veroorzaakt geen extra netwerkverzoek.
+ */
+export async function preparePushServiceWorker(): Promise<ServiceWorkerRegistration> {
+  if (!isPushSupported()) {
+    throw new Error('Dit apparaat of deze browser ondersteunt geen pushmeldingen.')
   }
-  if (Notification.permission !== 'granted') {
-    const permission = await Notification.requestPermission()
-    if (permission !== 'granted') {
-      throw new Error(permission === 'denied'
-        ? 'Meldingen zijn geblokkeerd in de browser. Pas dit aan in de browserinstellingen.'
-        : 'Zonder toestemming kunnen geen meldingen worden verstuurd.')
+
+  const registered = await registerServiceWorker()
+  if (!registered) {
+    let existing: ServiceWorkerRegistration | null = null
+    try {
+      existing = (await navigator.serviceWorker.getRegistration('/')) ?? null
+    } catch {
+      existing = null
     }
+    if (!existing) throw new Error(PUSH_UNAVAILABLE_MESSAGE)
+  }
+
+  return withServiceWorkerTimeout(navigator.serviceWorker.ready)
+}
+
+async function hasMismatchedApplicationServerKey(
+  registration: ServiceWorkerRegistration,
+  publicKey: string,
+): Promise<boolean> {
+  try {
+    const existing = await withServiceWorkerTimeout(registration.pushManager.getSubscription())
+    return existing !== null && classifyApplicationServerKey(existing, publicKey) === 'mismatch'
+  } catch {
+    // Een mislukte leesactie is nooit een reden om de subscription te
+    // verwijderen. Laat de browser-subscribe hieronder de beslissing nemen.
+    return false
+  }
+}
+
+/**
+ * Maakt de pushsubscription met de vooraf geladen VAPID-sleutel en
+ * Service Worker-registratie. Een bestaande subscription met een aantoonbaar
+ * afwijkende key stopt de flow zonder `subscribe()` of `unsubscribe()`.
+ * Bij een gelijke of onbekende key blijft `subscribe()` leidend, zodat de
+ * browser alle subscription-opties vergelijkt en een bestaande subscription
+ * kan hergebruiken.
+ */
+export async function subscribePreparedPush(
+  prepared: PreparedPushSubscription,
+): Promise<BrowserPushSubscription> {
+  if (!isPushSupported()) throw new Error('Dit apparaat of deze browser ondersteunt geen pushmeldingen.')
+
+  if (await hasMismatchedApplicationServerKey(prepared.registration, prepared.publicKey)) {
+    throw new PushKeyMismatchError()
+  }
+
+  try {
+    const subscription = await withServiceWorkerTimeout(
+      prepared.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(prepared.publicKey),
+      }),
+    )
+    return toBrowserSubscription(subscription)
+  } catch (error) {
+    if (!isInvalidStateError(error)) throw error
+    // Een tweede controle kan bijvoorbeeld door een andere tab zijn
+    // veroorzaakt. Alleen een aantoonbare mismatch wordt als keyconflict
+    // gemeld; alle andere fouten blijven de oorspronkelijke fout.
+    if (await hasMismatchedApplicationServerKey(prepared.registration, prepared.publicKey)) {
+      throw new PushKeyMismatchError()
+    }
+    throw error
+  }
+}
+
+export async function requestPermissionAndSubscribe(publicKey: string): Promise<BrowserPushSubscription> {
+  const permission = await requestPushPermission()
+  if (permission !== 'granted') {
+    throw new Error(permission === 'denied'
+      ? 'Meldingen zijn geblokkeerd in de browser. Pas dit aan in de browserinstellingen.'
+      : 'Zonder toestemming kunnen geen meldingen worden verstuurd.')
   }
   const registration = await withServiceWorkerTimeout(navigator.serviceWorker.ready)
   const subscription = await withServiceWorkerTimeout(
@@ -126,6 +266,67 @@ export async function getCurrentEndpoint(): Promise<string> {
  * een bestaande registratie. Bestaat die niet, dan starten we de gedeelde
  * registratie op de achtergrond en melden we direct `no-registration`.
  */
+export type PushBrowserSnapshot =
+  | { status: 'unsupported'; endpoint: null }
+  | { status: 'no-registration'; endpoint: null }
+  | { status: 'registration-pending'; endpoint: null }
+  | { status: 'no-subscription'; endpoint: null }
+  | {
+      status: 'subscribed'
+      endpoint: string
+      keyState: ApplicationServerKeyState
+      expired: boolean
+    }
+  | { status: 'unknown'; endpoint: null; error: unknown }
+
+function isSubscriptionExpired(subscription: PushSubscription): boolean {
+  const expiration = subscription.expirationTime
+  return typeof expiration === 'number' && expiration <= Date.now()
+}
+
+/**
+ * Leest de lokale browserstatus en classificeert de VAPID-key van een
+ * bestaande subscription. Fouten en time-outs worden als `unknown` gemeld,
+ * nooit als `no-subscription`. Er wordt niets gewijzigd of opgeruimd.
+ */
+export async function getPushBrowserSnapshot(
+  expectedPublicKey: string | null,
+): Promise<PushBrowserSnapshot> {
+  if (!isPushSupported()) return { status: 'unsupported', endpoint: null }
+
+  let registration: ServiceWorkerRegistration | null = null
+  try {
+    registration = (await navigator.serviceWorker.getRegistration('/')) ?? null
+  } catch (error) {
+    return { status: 'unknown', endpoint: null, error }
+  }
+
+  if (!registration) {
+    // Start (of hergebruik) de gedeelde registratie zonder de pagina te blokkeren.
+    void registerServiceWorker()
+    return { status: 'no-registration', endpoint: null }
+  }
+
+  if (!registration.active) {
+    return { status: 'registration-pending', endpoint: null }
+  }
+
+  try {
+    const subscription = await withServiceWorkerTimeout(registration.pushManager.getSubscription())
+    if (!subscription) return { status: 'no-subscription', endpoint: null }
+    return {
+      status: 'subscribed',
+      endpoint: subscription.endpoint,
+      keyState: expectedPublicKey
+        ? classifyApplicationServerKey(subscription, expectedPublicKey)
+        : 'unknown',
+      expired: isSubscriptionExpired(subscription),
+    }
+  } catch (error) {
+    return { status: 'unknown', endpoint: null, error }
+  }
+}
+
 export type PushBrowserState =
   | { status: 'no-registration'; endpoint: null }
   | { status: 'registration-pending'; endpoint: null }

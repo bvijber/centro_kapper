@@ -1,14 +1,32 @@
 import { BellOff, BellRing } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 import { publicErrorMessage } from './publicError'
 import { Button } from './Button'
 import {
+  applyPushStatusError,
+  beginPushUiAction,
+  deactivateOwnerPushRegistration,
+  enableOwnerPush,
+  failPushUiAction,
+  getPushOptInView,
+  resolvePushStatus,
+  visiblePushUiError,
+  type PushOptInStatus,
+  type PushServerObservation,
+  type PushUiErrorState,
+} from './push-opt-in-logic'
+import { usePushEnablePreparation } from './usePushEnablePreparation'
+import { usePushStatusRefresh } from './usePushStatusRefresh'
+import {
   getCurrentEndpoint,
-  getPushBrowserState,
+  getPushBrowserSnapshot,
   getPushPermission,
   isPushSupported,
-  requestPermissionAndSubscribe,
+  PUSH_KEY_MISMATCH_MESSAGE,
+  PushKeyMismatchError,
+  requestPushPermission,
+  subscribePreparedPush,
   unsubscribeBrowserSubscription,
 } from '../pwa/push-client'
 import {
@@ -29,120 +47,235 @@ import {
  *   van de eigenaar blijven ongewijzigd;
  * - zonder push blijft de interne notificatiebel het enige kanaal.
  */
-type OwnerPushOptInState = 'loading' | 'unsupported' | 'denied' | 'off' | 'on' | 'working' | 'error'
-
 export function OwnerPushOptIn({ onChanged }: { onChanged?: () => void }) {
-  const [state, setState] = useState<OwnerPushOptInState>('loading')
-  const [error, setError] = useState('')
+  const [status, setStatus] = useState<PushOptInStatus>('preparing')
+  const [errorState, setErrorState] = useState<PushUiErrorState>(beginPushUiAction)
   const [feedback, setFeedback] = useState('')
+  const statusRef = useRef<PushOptInStatus>('preparing')
+  const {
+    status: preparationStatus,
+    preparation,
+    error: preparationError,
+    retry: retryPreparation,
+  } = usePushEnablePreparation(getOwnerPushConfigFn)
+
+  const updateStatus = useCallback((next: PushOptInStatus) => {
+    statusRef.current = next
+    setStatus(next)
+  }, [])
+
+  const applyResolution = useCallback((
+    resolution: ReturnType<typeof resolvePushStatus>,
+    mode: 'initial' | 'refresh' | 'after-action',
+  ) => {
+    if (
+      mode === 'refresh' &&
+      resolution.status === 'unknown' &&
+      statusRef.current !== 'unknown' &&
+      statusRef.current !== 'preparing' &&
+      statusRef.current !== 'working'
+    ) {
+      setErrorState((current) => applyPushStatusError(current, 'Pushstatus is mogelijk verouderd. Probeer het opnieuw.'))
+      return
+    }
+    updateStatus(resolution.status)
+    setErrorState((current) => applyPushStatusError(current, resolution.error))
+  }, [updateStatus])
+
+  const loadStatus = useCallback(async (mode: 'initial' | 'refresh' | 'after-action') => {
+    const supported = isPushSupported()
+    const permission = getPushPermission()
+
+    const shortCircuit = () => applyResolution(resolvePushStatus({
+      scope: 'owner',
+      supported,
+      permission,
+      preparation: preparationStatus,
+      browser: { status: 'no-subscription', endpoint: null },
+      server: { status: 'not-available' },
+    }), mode)
+
+    if (!supported || permission !== 'granted') {
+      shortCircuit()
+      return
+    }
+
+    const publicKey = preparation?.status === 'ready' ? preparation.publicKey : null
+    const browser = await getPushBrowserSnapshot(publicKey).catch((caught) => (
+      { status: 'unknown', endpoint: null, error: caught } as const
+    ))
+
+    let server: PushServerObservation = { status: 'not-available' }
+    if (browser.status === 'subscribed' && browser.endpoint) {
+      try {
+        const result = await getOwnerPushStatusFn({ data: { endpoint: browser.endpoint } })
+        server = result.subscribed ? { status: 'registered' } : { status: 'not-registered' }
+      } catch (caught) {
+        server = { status: 'unknown', error: caught }
+      }
+    }
+
+    applyResolution(resolvePushStatus({
+      scope: 'owner',
+      supported,
+      permission,
+      preparation: preparationStatus,
+      browser,
+      server,
+    }), mode)
+  }, [preparation, preparationStatus, applyResolution])
+
+  const refresh = usePushStatusRefresh(loadStatus)
 
   useEffect(() => {
-    let active = true
-    setState('loading')
-    setError('')
+    void loadStatus('initial')
+  }, [loadStatus])
+
+  const enable = async () => {
+    setErrorState(beginPushUiAction())
     setFeedback('')
-    if (!isPushSupported()) {
-      setState('unsupported')
+    updateStatus('working')
+
+    if (preparationStatus !== 'ready' || !preparation || preparation.status !== 'ready') {
+      updateStatus('inactive')
+      setErrorState((current) => failPushUiAction(current, preparationError || 'Push is nog niet klaar. Probeer het opnieuw.'))
+      return
+    }
+
+    const outcome = await enableOwnerPush(preparation, {
+      requestPermission: requestPushPermission,
+      subscribe: subscribePreparedPush,
+      register: async (data) => {
+        await registerOwnerPushSubscriptionFn({ data })
+      },
+      refreshStatus: async (subscription) => {
+        const status = await getOwnerPushStatusFn({ data: { endpoint: subscription.endpoint } })
+        return status.subscribed
+      },
+    })
+
+    if (outcome.status === 'enabled') {
+      onChanged?.()
+      if (outcome.statusError) {
+        updateStatus('active')
+        setErrorState((current) => applyPushStatusError(
+          current,
+          publicErrorMessage(outcome.statusError, 'Push is aangezet, maar de status kon niet opnieuw worden gecontroleerd.'),
+        ))
+        return
+      }
+      if (outcome.subscribed) {
+        updateStatus('active')
+        setFeedback('Pushmeldingen staan aan op dit apparaat.')
+        return
+      }
+      updateStatus('local-unregistered')
+      setErrorState((current) => failPushUiAction(current, 'De pushregistratie is opgeslagen, maar de pushstatus is niet actief. Probeer het opnieuw.'))
+      return
+    }
+
+    if (outcome.status === 'denied') {
+      updateStatus('denied')
+      return
+    }
+    if (outcome.status === 'default') {
+      updateStatus('permission-needed')
+      return
+    }
+    if (outcome.status === 'not-ready') {
+      updateStatus('unknown')
+      setErrorState((current) => failPushUiAction(current, preparationError || 'Push is nog niet klaar. Probeer het opnieuw.'))
+      return
+    }
+
+    if (outcome.error instanceof PushKeyMismatchError) {
+      updateStatus('key-conflict')
+      setErrorState((current) => failPushUiAction(current, PUSH_KEY_MISMATCH_MESSAGE))
       return
     }
     if (getPushPermission() === 'denied') {
-      setState('denied')
+      updateStatus('denied')
       return
     }
-    void (async () => {
-      try {
-        const browserState = await getPushBrowserState()
-        if (browserState.status !== 'subscribed') {
-          if (active) setState('off')
-          return
-        }
-        const status = await getOwnerPushStatusFn({ data: { endpoint: browserState.endpoint } })
-        if (active) setState(status.subscribed ? 'on' : 'off')
-      } catch (caught) {
-        if (active) {
-          setState('error')
-          setError(publicErrorMessage(caught, 'De pushstatus kon niet worden geladen.'))
-        }
-      }
-    })()
-    return () => {
-      active = false
-    }
-  }, [])
-
-  const enable = async () => {
-    setError('')
-    setFeedback('')
-    setState('working')
-    try {
-      const config = await getOwnerPushConfigFn()
-      if (!config.publicKey) {
-        setState('error')
-        setError('Push is nog niet beschikbaar. Probeer het later opnieuw.')
-        return
-      }
-      const subscription = await requestPermissionAndSubscribe(config.publicKey)
-      await registerOwnerPushSubscriptionFn({
-        data: {
-          endpoint: subscription.endpoint,
-          p256dh: subscription.p256dh,
-          auth: subscription.auth,
-        },
-      })
-      setState('on')
-      setFeedback('Pushmeldingen staan aan op dit apparaat.')
-      onChanged?.()
-    } catch (caught) {
-      if (getPushPermission() === 'denied') {
-        setState('denied')
-        return
-      }
-      setState('off')
-      setError(publicErrorMessage(caught, 'Meldingen konden niet worden aangezet.'))
-    }
+    updateStatus('unknown')
+    setErrorState((current) => failPushUiAction(current, publicErrorMessage(outcome.error, 'Meldingen konden niet worden aangezet.')))
+    refresh('after-action')
   }
 
   const disable = async () => {
-    setError('')
+    setErrorState(beginPushUiAction())
     setFeedback('')
-    setState('working')
+    updateStatus('working')
     try {
-      const endpoint = await getCurrentEndpoint()
-      if (endpoint) {
-        const status = await getOwnerPushStatusFn({ data: { endpoint } })
-        if (status.id) {
-          await unregisterOwnerPushSubscriptionFn({ data: { id: status.id } })
-        }
+      const outcome = await deactivateOwnerPushRegistration({
+        resolveEndpoint: getCurrentEndpoint,
+        getStatus: async (endpoint) => getOwnerPushStatusFn({ data: { endpoint } }),
+        unregisterServer: async (id) => {
+          await unregisterOwnerPushSubscriptionFn({ data: { id } })
+        },
+        unsubscribeBrowser: unsubscribeBrowserSubscription,
+      })
+
+      if (outcome.status === 'disabled') {
+        updateStatus('inactive')
+        setFeedback('Pushmeldingen staan uit op dit apparaat.')
+        onChanged?.()
+        refresh('after-action')
+        return
       }
-      await unsubscribeBrowserSubscription()
-      setState('off')
-      setFeedback('Pushmeldingen staan uit op dit apparaat.')
+      if (outcome.status === 'endpoint-missing') {
+        updateStatus('unknown')
+        setErrorState((current) => failPushUiAction(current, 'Het pushapparaat kon niet worden bepaald. Probeer het opnieuw.'))
+        refresh('after-action')
+        return
+      }
+      if (outcome.status === 'server-failed') {
+        updateStatus('active')
+        setErrorState((current) => failPushUiAction(current, publicErrorMessage(outcome.error, 'Meldingen konden niet worden uitgezet.')))
+        refresh('after-action')
+        return
+      }
+
+      updateStatus('unknown')
+      setErrorState((current) => failPushUiAction(current, 'De serverregistratie is uitgeschakeld, maar het apparaat kon niet volledig worden losgekoppeld. Probeer het opnieuw.'))
       onChanged?.()
+      refresh('after-action')
     } catch (caught) {
-      setState('on')
-      setError(publicErrorMessage(caught, 'Meldingen konden niet worden uitgezet.'))
+      updateStatus('unknown')
+      setErrorState((current) => failPushUiAction(current, publicErrorMessage(caught, 'Meldingen konden niet worden uitgezet.')))
+      refresh('after-action')
     }
   }
 
-  if (state === 'loading') return <p className="lead">Pushstatus laden...</p>
-  if (state === 'unsupported') {
-    return <p className="queue-explanation">Dit apparaat of deze browser ondersteunt geen pushmeldingen. Je meldingen blijven zichtbaar in de notificatiebel.</p>
-  }
-  if (state === 'denied') {
-    return <p className="queue-explanation">Meldingen zijn geblokkeerd in de browser. Pas dit aan in de browserinstellingen als je meldingen wilt ontvangen.</p>
-  }
-  if (state === 'working') return <p className="lead">Bezig...</p>
+  const view = getPushOptInView(status, visiblePushUiError(errorState), feedback)
+
+  const enableExplanation =
+    view.state === 'local-unregistered'
+      ? 'Dit apparaat heeft push, maar de registratie voor de eigenaar ontbreekt. Zet meldingen opnieuw aan.'
+      : 'Ontvang een melding op dit apparaat zodra iemand de wachtrij binnenkomt, de wachtrij verlaat of er een afspraak geboekt of geannuleerd wordt.'
 
   return <>
-    {state === 'off' && <>
-      <p className="queue-explanation">Ontvang een melding op dit apparaat zodra iemand de wachtrij binnenkomt, de wachtrij verlaat of er een afspraak geboekt of geannuleerd wordt.</p>
-      <Button onClick={() => void enable()}><BellRing size={17} aria-hidden="true" /> Meldingen aanzetten</Button>
+    {view.state === 'preparing' && <p className="lead">Pushstatus controleren...</p>}
+    {view.state === 'unsupported' && <p className="queue-explanation">Dit apparaat of deze browser ondersteunt geen pushmeldingen. Je meldingen blijven zichtbaar in de notificatiebel.</p>}
+    {view.state === 'denied' && <p className="queue-explanation">Meldingen zijn geblokkeerd in de browser. Pas dit aan in de browserinstellingen als je meldingen wilt ontvangen.</p>}
+    {view.state === 'key-conflict' && <p className="queue-explanation">Je pushabonnement op dit apparaat gebruikt een andere sleutel dan de app verwacht.</p>}
+    {view.state === 'unknown' && <p className="queue-explanation">De pushstatus kon niet volledig worden bepaald.</p>}
+    {view.canEnable && <>
+      <p className="queue-explanation">{enableExplanation}</p>
+      {preparationStatus === 'error'
+        ? <Button onClick={retryPreparation}>Opnieuw proberen</Button>
+        : <Button onClick={() => void enable()} disabled={preparationStatus !== 'ready'}>
+          <BellRing size={17} aria-hidden="true" /> {preparationStatus === 'loading' ? 'Voorbereiden...' : 'Meldingen aanzetten'}
+        </Button>}
+      {preparationStatus === 'error' && <p className="form-error" role="alert">{preparationError}</p>}
     </>}
-    {state === 'on' && <>
+    {view.canRetry && <Button onClick={() => refresh('initial')}>Opnieuw proberen</Button>}
+    {view.state === 'working' && <p className="lead">Bezig...</p>}
+    {view.state === 'active' && <>
       <p className="queue-explanation">Pushmeldingen staan aan op dit apparaat.</p>
       <button type="button" className="leave-queue" onClick={() => void disable()}><BellOff size={15} aria-hidden="true" /> Meldingen uitzetten</button>
     </>}
-    {state === 'error' && <p className="form-error" role="alert">{error || 'Er ging iets mis.'}</p>}
-    {feedback && state !== 'error' && <p className="success-message" role="status">{feedback}</p>}
+    {view.error && <p className="form-error" role="alert">{view.error}</p>}
+    {view.feedback && <p className="success-message" role="status">{view.feedback}</p>}
   </>
 }

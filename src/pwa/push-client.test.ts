@@ -2,20 +2,61 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { registerServiceWorker } from './register-sw'
 import {
+  classifyApplicationServerKey,
   getCurrentEndpoint,
+  getPushBrowserSnapshot,
   getPushBrowserState,
   getPushPermission,
   isPushSupported,
+  preparePushServiceWorker,
+  PUSH_KEY_MISMATCH_MESSAGE,
   requestPermissionAndSubscribe,
+  requestPushPermission,
+  subscribePreparedPush,
   unsubscribeBrowserSubscription,
   urlBase64ToUint8Array,
 } from './push-client'
+import type { PreparedPushSubscription } from './push-client'
 
 vi.mock('./register-sw', () => ({
   registerServiceWorker: vi.fn(async () => null),
 }))
 
 const PUBLIC_KEY = 'BL7ELU24fJTAlH5Kyl8N6BDCac8u8li_U5PIwG963MOvdYs9s7LSzj8x_7v7RFdLZ9Eap50PiiyF5K0TDAis7t0'
+
+function decodePublicKey(value = PUBLIC_KEY): Uint8Array {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
+  return new Uint8Array(Buffer.from(normalized, 'base64'))
+}
+
+function asArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+}
+
+function publicKeyBuffer(value = PUBLIC_KEY): ArrayBuffer {
+  return asArrayBuffer(decodePublicKey(value))
+}
+
+function changedPublicKeyBuffer(): ArrayBuffer {
+  const bytes = decodePublicKey()
+  bytes[0] = (bytes[0] ?? 0) ^ 0xff
+  return asArrayBuffer(bytes)
+}
+
+function browserSubscription(endpoint: string) {
+  const unsubscribe = vi.fn(async () => true)
+  return {
+    subscription: {
+      endpoint,
+      toJSON: () => ({
+        endpoint,
+        keys: { p256dh: 'cDE1', auth: 'YXV0aA' },
+      }),
+      unsubscribe,
+    },
+    unsubscribe,
+  }
+}
 
 type WindowStub = {
   PushManager?: unknown
@@ -93,6 +134,105 @@ describe('push client helpers', () => {
     expect(subscribe).not.toHaveBeenCalled()
   })
 
+  it('vraagt toestemming synchroon aan vanuit de gebruikersactie', async () => {
+    const requestPermission = vi.fn(async () => 'granted')
+    stubBrowser({
+      PushManager: function PushManager() {},
+      Notification: { permission: 'default', requestPermission },
+      atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+      navigator: { serviceWorker: {} },
+    })
+
+    const permission = requestPushPermission()
+
+    expect(requestPermission).toHaveBeenCalledTimes(1)
+    await expect(permission).resolves.toBe('granted')
+  })
+
+  it('vraagt geen toestemming opnieuw wanneer die al is gegeven of geweigerd', async () => {
+    const requestPermission = vi.fn(async () => 'default')
+    const browser = {
+      PushManager: function PushManager() {},
+      Notification: { permission: 'granted', requestPermission },
+      atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+      navigator: { serviceWorker: {} },
+    }
+    stubBrowser(browser)
+
+    await expect(requestPushPermission()).resolves.toBe('granted')
+    expect(requestPermission).not.toHaveBeenCalled()
+
+    stubBrowser({ ...browser, Notification: { permission: 'denied', requestPermission } })
+    await expect(requestPushPermission()).resolves.toBe('denied')
+    expect(requestPermission).not.toHaveBeenCalled()
+  })
+
+  it('bereidt een actieve Service Worker-registratie voor zonder toestemming te vragen', async () => {
+    const registered = { scope: '/' } as unknown as ServiceWorkerRegistration
+    const readyRegistration = { scope: '/' } as unknown as ServiceWorkerRegistration
+    vi.mocked(registerServiceWorker).mockResolvedValueOnce(registered)
+    stubBrowser({
+      PushManager: function PushManager() {},
+      Notification: { permission: 'default', requestPermission: vi.fn(async () => 'granted') },
+      atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+      navigator: {
+        serviceWorker: {
+          ready: Promise.resolve(readyRegistration),
+          getRegistration: vi.fn(async () => undefined),
+        },
+      },
+    })
+
+    await expect(preparePushServiceWorker()).resolves.toBe(readyRegistration)
+    expect(registerServiceWorker).toHaveBeenCalledTimes(1)
+  })
+
+  it('meldt een mislukte Service Worker-voorbereiding zonder op ready te wachten', async () => {
+    vi.mocked(registerServiceWorker).mockResolvedValueOnce(null)
+    stubBrowser({
+      PushManager: function PushManager() {},
+      Notification: { permission: 'default', requestPermission: vi.fn(async () => 'granted') },
+      atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+      navigator: {
+        serviceWorker: {
+          ready: new Promise<never>(() => {}),
+          getRegistration: vi.fn(async () => undefined),
+        },
+      },
+    })
+
+    await expect(preparePushServiceWorker()).rejects.toThrow('Push is momenteel niet beschikbaar')
+  })
+
+  it('gebruikt de voorbereide registratie en VAPID-key zonder opnieuw op ready te wachten', async () => {
+    const subscribe = vi.fn(async () => ({
+      toJSON: () => ({ endpoint: 'https://push.example.test/prepared', keys: { p256dh: 'cDE1', auth: 'YXV0aA' } }),
+      unsubscribe: async () => true,
+    }))
+    const prepared = {
+      publicKey: PUBLIC_KEY,
+      registration: {
+        pushManager: { subscribe, getSubscription: vi.fn(async () => null) },
+      } as unknown as ServiceWorkerRegistration,
+    }
+    stubBrowser({
+      PushManager: function PushManager() {},
+      Notification: { permission: 'granted' },
+      atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+      navigator: { serviceWorker: { ready: new Promise<never>(() => {}) } },
+    })
+
+    await expect(subscribePreparedPush(prepared)).resolves.toMatchObject({
+      endpoint: 'https://push.example.test/prepared',
+      p256dh: 'cDE1',
+      auth: 'YXV0aA',
+    })
+    expect(subscribe).toHaveBeenCalledWith({
+      userVisibleOnly: true,
+      applicationServerKey: expect.any(Uint8Array),
+    })
+  })
+
   it('abonneert pas na expliciete toestemming met de publieke sleutel', async () => {
     const requestPermission = vi.fn(async () => 'granted')
     const subscribe = vi.fn(async () => ({
@@ -122,6 +262,207 @@ describe('push client helpers', () => {
     })
     await expect(getCurrentEndpoint()).resolves.toBe('https://push.example.test/e9')
     await expect(unsubscribeBrowserSubscription()).resolves.toBe(true)
+  })
+})
+
+describe('application server key classification', () => {
+  function stubKeyBrowser(): void {
+    stubBrowser({
+      PushManager: function PushManager() {},
+      Notification: { permission: 'granted' },
+      atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+      navigator: {},
+    })
+  }
+
+  beforeEach(() => {
+    stubKeyBrowser()
+  })
+
+  it('classificeert exact gelijke keybytes als match', () => {
+    const subscription = {
+      options: { applicationServerKey: publicKeyBuffer() },
+    } as unknown as Pick<PushSubscription, 'options'>
+
+    expect(classifyApplicationServerKey(subscription, PUBLIC_KEY)).toBe('match')
+  })
+
+  it('classificeert afwijkende keybytes als mismatch', () => {
+    const subscription = {
+      options: { applicationServerKey: changedPublicKeyBuffer() },
+    } as unknown as Pick<PushSubscription, 'options'>
+
+    expect(classifyApplicationServerKey(subscription, PUBLIC_KEY)).toBe('mismatch')
+  })
+
+  it('classificeert een null-key als mismatch wanneer een publieke key wordt verwacht', () => {
+    const subscription = {
+      options: { applicationServerKey: null },
+    } as unknown as Pick<PushSubscription, 'options'>
+
+    expect(classifyApplicationServerKey(subscription, PUBLIC_KEY)).toBe('mismatch')
+  })
+
+  it('classificeert een ontbrekende applicationServerKey-property als unknown', () => {
+    const subscription = {
+      options: {},
+    } as unknown as Pick<PushSubscription, 'options'>
+
+    expect(classifyApplicationServerKey(subscription, PUBLIC_KEY)).toBe('unknown')
+  })
+})
+
+describe('prepared push subscription reuse', () => {
+  const ENDPOINT = 'https://push.example.test/existing'
+
+  function stubPushBrowser(): void {
+    stubBrowser({
+      PushManager: function PushManager() {},
+      Notification: { permission: 'granted' },
+      atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+      navigator: { serviceWorker: {} },
+    })
+  }
+
+  function preparedWith(pushManager: object): PreparedPushSubscription {
+    return {
+      publicKey: PUBLIC_KEY,
+      registration: { pushManager } as unknown as ServiceWorkerRegistration,
+    }
+  }
+
+  it('roept subscribe aan en behoudt het endpoint bij een bestaande subscription met dezelfde key', async () => {
+    stubPushBrowser()
+    const unsubscribe = vi.fn(async () => true)
+    const existing = {
+      endpoint: ENDPOINT,
+      options: { applicationServerKey: publicKeyBuffer() },
+      unsubscribe,
+    } as unknown as PushSubscription
+    const subscribe = vi.fn(async () => browserSubscription(ENDPOINT).subscription)
+    const getSubscription = vi.fn(async () => existing)
+
+    await expect(subscribePreparedPush(preparedWith({ subscribe, getSubscription }))).resolves.toMatchObject({
+      endpoint: ENDPOINT,
+    })
+    expect(getSubscription).toHaveBeenCalledTimes(1)
+    expect(subscribe).toHaveBeenCalledTimes(1)
+    expect(unsubscribe).not.toHaveBeenCalled()
+  })
+
+  it('stopt zonder subscribe of unsubscribe bij een afwijkende key', async () => {
+    stubPushBrowser()
+    const unsubscribe = vi.fn(async () => true)
+    const existing = {
+      endpoint: ENDPOINT,
+      options: { applicationServerKey: changedPublicKeyBuffer() },
+      unsubscribe,
+    } as unknown as PushSubscription
+    const subscribe = vi.fn()
+    const getSubscription = vi.fn(async () => existing)
+
+    await expect(subscribePreparedPush(preparedWith({ subscribe, getSubscription })))
+      .rejects.toThrow(PUSH_KEY_MISMATCH_MESSAGE)
+    expect(subscribe).not.toHaveBeenCalled()
+    expect(unsubscribe).not.toHaveBeenCalled()
+  })
+
+  it('vertaalt InvalidStateError naar een keyconflict wanneer de tweede controle een mismatch ziet', async () => {
+    stubPushBrowser()
+    const unsubscribe = vi.fn(async () => true)
+    const existing = {
+      endpoint: ENDPOINT,
+      options: { applicationServerKey: changedPublicKeyBuffer() },
+      unsubscribe,
+    } as unknown as PushSubscription
+    const invalidState = Object.assign(new Error('invalid state'), { name: 'InvalidStateError' })
+    const subscribe = vi.fn(async () => {
+      throw invalidState
+    })
+    const getSubscription = vi.fn()
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(existing)
+
+    await expect(subscribePreparedPush(preparedWith({ subscribe, getSubscription })))
+      .rejects.toThrow(PUSH_KEY_MISMATCH_MESSAGE)
+    expect(getSubscription).toHaveBeenCalledTimes(2)
+    expect(subscribe).toHaveBeenCalledTimes(1)
+    expect(unsubscribe).not.toHaveBeenCalled()
+  })
+
+  it('geeft de oorspronkelijke subscribe-fout door wanneer de tweede getSubscription mislukt', async () => {
+    stubPushBrowser()
+    const originalError = Object.assign(new Error('subscribe failure'), { name: 'InvalidStateError' })
+    const subscribe = vi.fn(async () => {
+      throw originalError
+    })
+    const getSubscription = vi.fn()
+      .mockResolvedValueOnce(null)
+      .mockRejectedValueOnce(new Error('read failure'))
+
+    await expect(subscribePreparedPush(preparedWith({ subscribe, getSubscription })))
+      .rejects.toBe(originalError)
+    expect(getSubscription).toHaveBeenCalledTimes(2)
+    expect(subscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('gaat verder met subscribe zonder cleanup wanneer getSubscription mislukt', async () => {
+    stubPushBrowser()
+    const subscribe = vi.fn(async () => browserSubscription(ENDPOINT).subscription)
+    const getSubscription = vi.fn(async () => {
+      throw new Error('read failure')
+    })
+
+    await expect(subscribePreparedPush(preparedWith({ subscribe, getSubscription }))).resolves.toMatchObject({
+      endpoint: ENDPOINT,
+    })
+    expect(getSubscription).toHaveBeenCalledTimes(1)
+    expect(subscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('maakt een normale nieuwe subscription wanneer er niets bestaat', async () => {
+    stubPushBrowser()
+    const subscribe = vi.fn(async () => browserSubscription(ENDPOINT).subscription)
+    const getSubscription = vi.fn(async () => null)
+
+    await expect(subscribePreparedPush(preparedWith({ subscribe, getSubscription }))).resolves.toMatchObject({
+      endpoint: ENDPOINT,
+    })
+    expect(getSubscription).toHaveBeenCalledTimes(1)
+    expect(subscribe).toHaveBeenCalledTimes(1)
+  })
+
+  it('beëindigt een hangende getSubscription en gaat daarna verder met subscribe', async () => {
+    vi.useFakeTimers()
+    try {
+      stubPushBrowser()
+      const subscribe = vi.fn(async () => browserSubscription(ENDPOINT).subscription)
+      const getSubscription = vi.fn(() => new Promise<PushSubscription | null>(() => {}))
+
+      const assertion = expect(subscribePreparedPush(preparedWith({ subscribe, getSubscription })))
+        .resolves.toMatchObject({ endpoint: ENDPOINT })
+      await vi.advanceTimersByTimeAsync(10_000)
+      await assertion
+      expect(subscribe).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('beëindigt een hangende subscribe met de bestaande time-outfout', async () => {
+    vi.useFakeTimers()
+    try {
+      stubPushBrowser()
+      const subscribe = vi.fn(() => new Promise<PushSubscription>(() => {}))
+      const getSubscription = vi.fn(async () => null)
+
+      const assertion = expect(subscribePreparedPush(preparedWith({ subscribe, getSubscription })))
+        .rejects.toThrow('Push is momenteel niet beschikbaar')
+      await vi.advanceTimersByTimeAsync(10_000)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 
@@ -194,6 +535,162 @@ describe('push browser state', () => {
       endpoint: 'https://push.example.test/e2',
     })
     expect(registerServiceWorker).not.toHaveBeenCalled()
+  })
+})
+
+describe('push browser snapshot', () => {
+  function stubSnapshotBrowser(serviceWorker: object): void {
+    stubBrowser({
+      PushManager: function PushManager() {},
+      Notification: { permission: 'granted' },
+      atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+      navigator: { serviceWorker },
+    })
+  }
+
+  function registrationWith(subscription: PushSubscription | null): object {
+    return {
+      active: {},
+      pushManager: { getSubscription: vi.fn(async () => subscription) },
+    }
+  }
+
+  function snapshotSubscription(options: object, over: Partial<PushSubscription> = {}): PushSubscription {
+    return {
+      endpoint: 'https://push.example.test/snapshot',
+      options,
+      expirationTime: null,
+      ...over,
+    } as unknown as PushSubscription
+  }
+
+  it('classificeert een lokale subscription met gelijke key als match', async () => {
+    const sub = snapshotSubscription({ applicationServerKey: publicKeyBuffer() })
+    stubSnapshotBrowser({ getRegistration: vi.fn(async () => registrationWith(sub)) })
+
+    await expect(getPushBrowserSnapshot(PUBLIC_KEY)).resolves.toEqual({
+      status: 'subscribed',
+      endpoint: 'https://push.example.test/snapshot',
+      keyState: 'match',
+      expired: false,
+    })
+  })
+
+  it('classificeert een lokale subscription met afwijkende key als mismatch', async () => {
+    const sub = snapshotSubscription({ applicationServerKey: changedPublicKeyBuffer() })
+    stubSnapshotBrowser({ getRegistration: vi.fn(async () => registrationWith(sub)) })
+
+    await expect(getPushBrowserSnapshot(PUBLIC_KEY)).resolves.toMatchObject({
+      status: 'subscribed',
+      keyState: 'mismatch',
+    })
+  })
+
+  it('classificeert een ontbrekende key als unknown', async () => {
+    const sub = snapshotSubscription({})
+    stubSnapshotBrowser({ getRegistration: vi.fn(async () => registrationWith(sub)) })
+
+    await expect(getPushBrowserSnapshot(PUBLIC_KEY)).resolves.toMatchObject({
+      status: 'subscribed',
+      keyState: 'unknown',
+    })
+  })
+
+  it('meldt een ontbrekende subscription als no-subscription', async () => {
+    stubSnapshotBrowser({ getRegistration: vi.fn(async () => registrationWith(null)) })
+
+    await expect(getPushBrowserSnapshot(PUBLIC_KEY)).resolves.toEqual({
+      status: 'no-subscription',
+      endpoint: null,
+    })
+  })
+
+  it('meldt een mislukte getSubscription als unknown en nooit als no-subscription', async () => {
+    const registration = {
+      active: {},
+      pushManager: { getSubscription: vi.fn(async () => { throw new Error('read failure') }) },
+    }
+    stubSnapshotBrowser({ getRegistration: vi.fn(async () => registration) })
+
+    await expect(getPushBrowserSnapshot(PUBLIC_KEY)).resolves.toMatchObject({
+      status: 'unknown',
+      endpoint: null,
+    })
+  })
+
+  it('meldt een ontbrekende registratie als no-registration en start de registratie', async () => {
+    stubSnapshotBrowser({ getRegistration: vi.fn(async () => undefined) })
+
+    await expect(getPushBrowserSnapshot(PUBLIC_KEY)).resolves.toEqual({
+      status: 'no-registration',
+      endpoint: null,
+    })
+    expect(registerServiceWorker).toHaveBeenCalledTimes(1)
+  })
+
+  it('meldt een registratie die nog niet actief is als registration-pending', async () => {
+    stubSnapshotBrowser({ getRegistration: vi.fn(async () => ({ active: null })) })
+
+    await expect(getPushBrowserSnapshot(PUBLIC_KEY)).resolves.toEqual({
+      status: 'registration-pending',
+      endpoint: null,
+    })
+  })
+
+  it('markeert een verlopen subscription als expired', async () => {
+    const sub = snapshotSubscription(
+      { applicationServerKey: publicKeyBuffer() },
+      { expirationTime: Date.now() - 1000 },
+    )
+    stubSnapshotBrowser({ getRegistration: vi.fn(async () => registrationWith(sub)) })
+
+    await expect(getPushBrowserSnapshot(PUBLIC_KEY)).resolves.toMatchObject({
+      status: 'subscribed',
+      expired: true,
+    })
+  })
+
+  it('voert bij een keyconflict nooit automatisch unsubscribe uit', async () => {
+    const unsubscribe = vi.fn(async () => true)
+    const sub = snapshotSubscription({ applicationServerKey: changedPublicKeyBuffer() }, { unsubscribe })
+    stubSnapshotBrowser({ getRegistration: vi.fn(async () => registrationWith(sub)) })
+
+    await getPushBrowserSnapshot(PUBLIC_KEY)
+    expect(unsubscribe).not.toHaveBeenCalled()
+  })
+
+  it('beëindigt een hangende getSubscription met unknown', async () => {
+    vi.useFakeTimers()
+    try {
+      const registration = {
+        active: {},
+        pushManager: { getSubscription: vi.fn(() => new Promise<PushSubscription | null>(() => {})) },
+      }
+      stubSnapshotBrowser({ getRegistration: vi.fn(async () => registration) })
+
+      const assertion = expect(getPushBrowserSnapshot(PUBLIC_KEY)).resolves.toMatchObject({
+        status: 'unknown',
+        endpoint: null,
+      })
+      await vi.advanceTimersByTimeAsync(10_000)
+      await assertion
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('meldt unsupported wanneer de browser geen push ondersteunt', async () => {
+    stubBrowser({
+      PushManager: function PushManager() {},
+      Notification: { permission: 'granted' },
+      atob: (value: string) => Buffer.from(value, 'base64').toString('binary'),
+      navigator: {},
+    })
+
+    await expect(getPushBrowserSnapshot(PUBLIC_KEY)).resolves.toEqual({
+      status: 'unsupported',
+      endpoint: null,
+    })
   })
 })
 
